@@ -1,0 +1,75 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  // output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DIRECT_URL")
+}
+
+enum UserRole {
+  CUSTOMER
+  ISSUE_MANAGER
+  SERVICE_HEAD
+  ENGINEERING_HEAD
+  MANUFACTURING_HEAD
+}
+
+enum IssueStatus {
+  Open
+  InProgress
+  Resolved
+  Closed
+}
+
+enum ActionType {
+  StatusChange
+  Comment
+  PhotoRequested
+  Transferred
+}
+
+model User {
+  id            Int      @id @default(autoincrement())
+  name          String
+  email         String   @unique
+  mobile_no     String   @unique
+  role          UserRole
+  issues        Issue[]  @relation("AssignedIssues") // user ko assigned issues
+  createdIssues Issue[]  @relation("CreatedIssues") // issues created by user
+}
+
+model Issue {
+  id          Int            @id @default(autoincrement())
+  title       String
+  description String
+  machine     String
+  createdBy   Int
+  createdUser User           @relation("CreatedIssues", fields: [createdBy], references: [id])
+  status      IssueStatus    @default(Open)
+  videos      String[]
+  images      String[]
+  assignedTo  Int?
+  user        User?          @relation("AssignedIssues", fields: [assignedTo], references: [id])
+  history     IssueHistory[]
+}
+
+model IssueHistory {
+  id         Int          @id @default(autoincrement())
+  issueId    Int
+  issue      Issue        @relation(fields: [issueId], references: [id])
+  actionType ActionType // jaise "StatusChange", "PhotoRequested", "Transferred"
+  oldStatus  IssueStatus?
+  newStatus  IssueStatus?
+  fromUserId Int?
+  toUserId   Int?
+  comment    String? // extra info, jaise "photo request ke liye msg"
+  createdAt  DateTime     @default(now())
+}
