@@ -1,12 +1,7 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// FINAL SIMPLE RECOMMENDATION - Use This Schema
 
 generator client {
   provider = "prisma-client-js"
-  // output   = "../src/generated/prisma"
 }
 
 datasource db {
@@ -14,8 +9,110 @@ datasource db {
   url      = env("DIRECT_URL")
 }
 
-enum UserRole {
-  CUSTOMER
+model Customer {
+  id        Int @id @default(autoincrement())    // e.g., "clkv6tv0l000108l7"
+  name      String @db.VarChar(100)
+  email     String @unique @db.VarChar(255)
+  mobile_no String @unique @db.VarChar(20)
+  
+  issues    Issue[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([email])
+  @@map("customers")
+}
+
+model Employee {
+  id        String       @id @default(cuid())  // e.g., "clkv6tv0l000109l8"
+  name      String       @db.VarChar(100)
+  email     String       @unique @db.VarChar(255)
+  mobile_no String       @unique @db.VarChar(20)
+  role      EmployeeRole
+  isActive  Boolean      @default(true)
+  
+  assignedIssues    Issue[]         @relation("AssignedEmployee")
+  performedActions  IssueTimeLine[] @relation("ActionPerformer")
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([isActive])
+  @@map("employees")
+}
+
+model Issue {
+  // PRIMARY KEY: Use CUID (internal database ID)
+  id       String @id @default(cuid())    // e.g., "clkv6tv0l000110l9"
+  
+  // USER-FRIENDLY ID: Simple counter (managed by your app)
+  ticketNo String @unique @db.VarChar(20) // e.g., "ISSUE-2024-001"
+  
+  title       String @db.VarChar(200)
+  description String @db.Text
+  machine     String? @db.VarChar(100)
+  location    String? @db.VarChar(100)
+  
+  // Relationships
+  customerId   Int
+  customer     Customer @relation(fields: [customerId], references: [id])
+  
+  assignedToId String?
+  assignedTo   Employee? @relation("AssignedEmployee", fields: [assignedToId], references: [id])
+  
+  // Issue details
+  priority Priority    @default(MEDIUM)
+  category Category
+  status   IssueStatus @default(OPEN)
+  
+  dueDate    DateTime?
+  resolvedAt DateTime?
+  closedAt   DateTime?
+  reopenedAt DateTime?
+  
+  // Timeline
+  timeline IssueTimeLine[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Essential indexes only
+  @@index([status])
+  @@index([assignedToId])
+  @@index([customerId])
+  @@index([ticketNo])
+  @@map("issues")
+}
+
+model IssueTimeLine {
+  id       String @id @default(cuid())    // e.g., "clkv6tv0l000111la"
+  issueId  String                         // References Issue.id
+  issue    Issue  @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  
+  action   ActionType @default(ISSUE_CREATED)
+  comment  String?    @db.Text
+  
+  // Status tracking
+  fromStatus IssueStatus?
+  toStatus   IssueStatus?
+  
+  // Assignment tracking  
+  fromEmployeeId String?
+  toEmployeeId   String?
+  
+  // Who did this action
+  performedById String?
+  performedBy   Employee? @relation("ActionPerformer", fields: [performedById], references: [id])
+  
+  createdAt DateTime @default(now())
+  
+  @@index([issueId])
+  @@map("issue_timeline")
+}
+
+// Your existing enums - keep as is
+enum EmployeeRole {
   ISSUE_MANAGER
   SERVICE_HEAD
   ENGINEERING_HEAD
@@ -23,53 +120,41 @@ enum UserRole {
 }
 
 enum IssueStatus {
-  Open
-  InProgress
-  Resolved
-  Closed
+  OPEN
+  ASSIGNED
+  IN_PROGRESS
+  PENDING
+  RESOLVED
+  CLOSED
+  REOPENED
+  CANCELLED
 }
 
 enum ActionType {
-  StatusChange
-  Comment
-  PhotoRequested
-  Transferred
+  ISSUE_CREATED
+  ASSIGNED
+  REASSIGNED
+  COMMENT_ADDED
+  RESOLVED
+  REOPENED
+  CLOSED
+  CANCELLED
 }
 
-model User {
-  id            Int      @id @default(autoincrement())
-  name          String
-  email         String   @unique
-  mobile_no     String   @unique
-  role          UserRole
-  issues        Issue[]  @relation("AssignedIssues") // user ko assigned issues
-  createdIssues Issue[]  @relation("CreatedIssues") // issues created by user
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+  URGENT
 }
 
-model Issue {
-  id          Int            @id @default(autoincrement())
-  title       String
-  description String
-  machine     String
-  createdBy   Int
-  createdUser User           @relation("CreatedIssues", fields: [createdBy], references: [id])
-  status      IssueStatus    @default(Open)
-  videos      String[]
-  images      String[]
-  assignedTo  Int?
-  user        User?          @relation("AssignedIssues", fields: [assignedTo], references: [id])
-  history     IssueHistory[]
-}
-
-model IssueHistory {
-  id         Int          @id @default(autoincrement())
-  issueId    Int
-  issue      Issue        @relation(fields: [issueId], references: [id])
-  actionType ActionType // jaise "StatusChange", "PhotoRequested", "Transferred"
-  oldStatus  IssueStatus?
-  newStatus  IssueStatus?
-  fromUserId Int?
-  toUserId   Int?
-  comment    String? // extra info, jaise "photo request ke liye msg"
-  createdAt  DateTime     @default(now())
+enum Category {
+  HARDWARE_ISSUE
+  SOFTWARE_ISSUE
+  MAINTENANCE
+  INSTALLATION
+  TRAINING
+  WARRANTY_CLAIM
+  OTHER
 }

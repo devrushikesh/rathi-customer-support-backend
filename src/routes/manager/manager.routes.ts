@@ -1,8 +1,11 @@
-import express from "express";
+import express, { type Request, type Response } from "express";
 
 const ManagerRoutes = express.Router();
 
 
+ManagerRoutes.get("/get-new-issues", async (req: Request, res: Response) => {
+    
+})
 
 
 
