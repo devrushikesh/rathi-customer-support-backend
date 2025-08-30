@@ -1,21 +1,22 @@
 import  { type Request, type Response } from "express";
-import { createIssue, fetchAllIssues, fetchIssueTimeline } from "../services/customer.service.js";
-
-
+import CustomerServices from "../services/customer.service.js";
 
 export const getAllIssuesController = async (req: Request, res: Response) => {
     try {
-        const Issues = await fetchAllIssues(4);
+        const Issues = await CustomerServices.fetchAllIssues(1);
         res.send(Issues)
     } catch (error) {
         res.status(500).send()
     }
 }
 
-
 export const getIssueTimeLineController = async (req: Request, res: Response) => {
     try {
-        const Issue = await fetchIssueTimeline(1);
+        const issue_id:string = `${req.params.issue_id}`;
+        if (!issue_id) {
+            res.send("not found")
+        }
+        const Issue = await CustomerServices.fetchIssueTimeline(issue_id);
         res.send(Issue)
     } catch (error) {
         res.status(500).send()
@@ -23,8 +24,8 @@ export const getIssueTimeLineController = async (req: Request, res: Response) =>
 }
 
 export const createIssueController = async (req: Request, res: Response) => {
-    const { machine, title, description, images, videos } = req.body;
-    if (!machine || !title || !description) {
+    const { machine, description, priority, location, category } = req.body;
+    if (!machine || !priority || !category  || !location || !description) {
         res.status(500).send({
             status: "failure",
             message: "Invalid data",
@@ -32,8 +33,15 @@ export const createIssueController = async (req: Request, res: Response) => {
         })
     }
     try {
-        const data = { title: title, description: description, machine: machine, images: images, videos: videos, createdBy: 1 }
-        await createIssue(data)
+        const data = { 
+            description: description, 
+            machine: machine, 
+            priority: priority, 
+            location: location, 
+            category: category, 
+            customerId: 1 
+        }
+        await CustomerServices.createIssue(data)
         res.send({
             status: "success",
             message: "Issue Created Successfully!",

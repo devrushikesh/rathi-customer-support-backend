@@ -7,8 +7,12 @@ const AuthRouter: Router = Router();
 
 
 
-AuthRouter.post("/login", (req: Request<{}, {}, { id: number }>, res: Response) => {
-
+AuthRouter.post("/get-otp", (req: Request<{}, {}, { mobile_number: number }>, res: Response) => {
+    const { mobile_number } = req.body;
+    if (!mobile_number) {
+        return res.status(400).send()
+    }
+    
     try {
         
     } catch (error) {
