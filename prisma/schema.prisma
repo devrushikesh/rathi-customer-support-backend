@@ -10,103 +10,128 @@ datasource db {
 }
 
 model Customer {
-  id        Int @id @default(autoincrement())    // e.g., "clkv6tv0l000108l7"
+  id        Int    @id @default(autoincrement()) // e.g., "clkv6tv0l000108l7"
   name      String @db.VarChar(100)
   email     String @unique @db.VarChar(255)
   mobile_no String @unique @db.VarChar(20)
-  
-  issues    Issue[]
-  
+
+  issues Issue[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   @@index([email])
   @@map("customers")
 }
 
 model Employee {
-  id        String       @id @default(cuid())  // e.g., "clkv6tv0l000109l8"
-  name      String       @db.VarChar(100)
-  email     String       @unique @db.VarChar(255)
-  mobile_no String       @unique @db.VarChar(20)
-  role      EmployeeRole
-  isActive  Boolean      @default(true)
-  
-  assignedIssues    Issue[]         @relation("AssignedEmployee")
-  performedActions  IssueTimeLine[] @relation("ActionPerformer")
-  
+  id         String       @id @default(cuid()) // e.g., "clkv6tv0l000109l8"
+  name       String?      @db.VarChar(100)
+  email      String       @unique @db.VarChar(255)
+  mobile_no  String       @unique @db.VarChar(20)
+  department Department
+  role       EmployeeRole
+  isActive   Boolean      @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
-  @@index([isActive])
-  @@map("employees")
+  issueSiteVisit IssueSiteVisit[] 
+
+  IssueAssinedDepartment IssueAssinedDepartment[]
 }
+
 
 model Issue {
   // PRIMARY KEY: Use CUID (internal database ID)
-  id       String @id @default(cuid())    // e.g., "clkv6tv0l000110l9"
-  
+  id String @id @default(cuid()) // e.g., "clkv6tv0l000110l9"
+
   // USER-FRIENDLY ID: Simple counter (managed by your app)
   ticketNo String @unique @db.VarChar(20) // e.g., "ISSUE-2024-001"
-  
-  title       String @db.VarChar(200)
-  description String @db.Text
+
+  description String  @db.Text
   machine     String? @db.VarChar(100)
   location    String? @db.VarChar(100)
-  
-  // Relationships
-  customerId   Int
-  customer     Customer @relation(fields: [customerId], references: [id])
-  
-  assignedToId String?
-  assignedTo   Employee? @relation("AssignedEmployee", fields: [assignedToId], references: [id])
-  
+
+  // attachments
+  attachments_urls String[] @default([])
+
   // Issue details
   priority Priority    @default(MEDIUM)
   category Category
-  status   IssueStatus @default(OPEN)
-  
+
+  // Customer-facing
+  customerStatus CustomerStatus @default(OPEN)
+
+  // Company-facing
+  internalStatus InternalStatus @default(OPEN)
+
   dueDate    DateTime?
   resolvedAt DateTime?
   closedAt   DateTime?
   reopenedAt DateTime?
-  
-  // Timeline
-  timeline IssueTimeLine[]
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
+  // Relationships
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  // Timeline
+  timeline IssueTimeLine[]
+  issueSiteVisit IssueSiteVisit[]
+  IssueAssinedDepartment IssueAssinedDepartment[]
+
   // Essential indexes only
-  @@index([status])
-  @@index([assignedToId])
+  @@index([customerStatus])
+  @@index([internalStatus])
   @@index([customerId])
   @@index([ticketNo])
   @@map("issues")
 }
 
+model IssueAssinedDepartment {
+  id String @id @default(cuid())
+  issueId String
+  issue Issue @relation(fields: [issueId], references: [id])
+  employeeid String
+  assignTo Employee @relation(fields: [employeeid], references: [id])
+}
+
+model IssueSiteVisit {
+  id String @id @default(cuid())
+  issueId String
+  issue Issue @relation(fields: [issueId], references: [id])
+  status VisitStatus @default(PENDING)
+  scheduled_date DateTime
+  employeeId String
+  employee Employee @relation(fields: [employeeId], references: [id])
+}
+
 model IssueTimeLine {
-  id       String @id @default(cuid())    // e.g., "clkv6tv0l000111la"
-  issueId  String                         // References Issue.id
-  issue    Issue  @relation(fields: [issueId], references: [id], onDelete: Cascade)
-  
-  action   ActionType @default(ISSUE_CREATED)
-  comment  String?    @db.Text
-  
-  // Status tracking
-  fromStatus IssueStatus?
-  toStatus   IssueStatus?
-  
+  id      String @id @default(cuid()) // e.g., "clkv6tv0l000111la"
+  issueId String // References Issue.id
+  issue   Issue  @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  action  ActionType @default(ISSUE_CREATED)
+  comment String?    @db.Text
+
+  // Customer-visible transition
+  fromCustomerStatus CustomerStatus?
+  toCustomerStatus   CustomerStatus?
+
+  // Internal transition
+  fromInternalStatus InternalStatus?
+  toInternalStatus   InternalStatus?
+
   // Assignment tracking  
   fromEmployeeId String?
   toEmployeeId   String?
-  
-  // Who did this action
-  performedById String?
-  performedBy   Employee? @relation("ActionPerformer", fields: [performedById], references: [id])
-  
+
+  // visibility
+  visibleToCustomer Boolean @default(false)
+
   createdAt DateTime @default(now())
-  
+
   @@index([issueId])
   @@map("issue_timeline")
 }
@@ -114,31 +139,53 @@ model IssueTimeLine {
 // Your existing enums - keep as is
 enum EmployeeRole {
   ISSUE_MANAGER
-  SERVICE_HEAD
   ENGINEERING_HEAD
   MANUFACTURING_HEAD
+  FABRICATION_HEAD
+  DESIGN_HEAD
+  SALES_HEAD
+  QUALITY_HEAD
+  SERVICE_HEAD
+  SERVICE_ENGINEERS
 }
 
-enum IssueStatus {
+enum CustomerStatus {
   OPEN
-  ASSIGNED
   IN_PROGRESS
-  PENDING
   RESOLVED
   CLOSED
+  CANCELLED
+}
+
+enum InternalStatus {
+  OPEN
+  ASSIGNED
+  REASSIGNED
+  TRANSFERRED
+  WAITING_FOR_PARTS
+  ESCALATED
+  RESOLVED
   REOPENED
+  CLOSED
   CANCELLED
 }
 
 enum ActionType {
+  // Status lifecycle events
   ISSUE_CREATED
   ASSIGNED
   REASSIGNED
-  COMMENT_ADDED
   RESOLVED
   REOPENED
   CLOSED
   CANCELLED
+
+  // Activity / meta events
+  COMMENT_ADDED
+  SITE_VISIT_REQUEST
+  SITE_VISIT_CONFIRM
+  SITE_VISIT_COMPLETED
+  TRANSFERRED
 }
 
 enum Priority {
@@ -151,10 +198,24 @@ enum Priority {
 
 enum Category {
   HARDWARE_ISSUE
+  QUALITY_ISSUE
   SOFTWARE_ISSUE
   MAINTENANCE
   INSTALLATION
   TRAINING
   WARRANTY_CLAIM
+  SERVICING
   OTHER
+}
+
+enum VisitStatus{
+  PENDING
+  VISITED
+}
+
+enum Department {
+  SALES
+  SERVICE
+  ENGINEERING
+  MANUFACTURING
 }

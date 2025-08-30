@@ -6,7 +6,7 @@ const CustomerRoutes = express.Router();
 
 CustomerRoutes.get("/get-all-issues", getAllIssuesController)
 
-CustomerRoutes.get("/get-issue-timeline", getIssueTimeLineController)
+CustomerRoutes.get("/get-issue-timeline/:issue_id", getIssueTimeLineController)
 
 CustomerRoutes.post("/create-issue", createIssueController)
 
