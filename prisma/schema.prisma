@@ -1,4 +1,4 @@
-// FINAL SIMPLE RECOMMENDATION - Use This Schema
+// IMPROVED PRISMA SCHEMA WITH OPTIMIZATIONS
 
 generator client {
   provider = "prisma-client-js"
@@ -10,60 +10,65 @@ datasource db {
 }
 
 model Customer {
-  id        Int    @id @default(autoincrement()) // e.g., "clkv6tv0l000108l7"
+  id        Int    @id @default(autoincrement())
   name      String @db.VarChar(100)
   email     String @unique @db.VarChar(255)
   mobile_no String @unique @db.VarChar(20)
+  role CustomerRole @default(CUSTOMER)
 
   issues Issue[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([email])
+  @@index([mobile_no])
   @@map("customers")
 }
 
 model Employee {
-  id         String       @id @default(cuid()) // e.g., "clkv6tv0l000109l8"
-  name       String?      @db.VarChar(100)
+  id         String       @id @default(cuid())
+  name       String       @db.VarChar(100)
   email      String       @unique @db.VarChar(255)
   mobile_no  String       @unique @db.VarChar(20)
-  department Department
+  department Department?
   role       EmployeeRole
   isActive   Boolean      @default(true)
+  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  issueSiteVisit IssueSiteVisit[] 
-
-  IssueAssinedDepartment IssueAssinedDepartment[]
+  
+  // Relationships
+  issueSiteVisits        IssueSiteVisit[]
+  assignedIssues         IssueAssignedDepartment[]
+  siteVisitRequests      SiteVisitRequest[]
+  
+  @@index([mobile_no])
+  @@index([department, isActive]) // Compound index for filtering active employees by department
+  @@map("employees")
 }
 
-
 model Issue {
-  // PRIMARY KEY: Use CUID (internal database ID)
-  id String @id @default(cuid()) // e.g., "clkv6tv0l000110l9"
+  id String @id @default(cuid())
 
-  // USER-FRIENDLY ID: Simple counter (managed by your app)
-  ticketNo String @unique @db.VarChar(20) // e.g., "ISSUE-2024-001"
+  // User-friendly ticket number
+  ticketNo String @unique @db.VarChar(20)
 
   description String  @db.Text
-  machine     String? @db.VarChar(100)
-  location    String? @db.VarChar(100)
+  machine     String @db.VarChar(100)
+  location    String @db.VarChar(100)
 
-  // attachments
-  attachments_urls String[] @default([])
+  // Attachments
+  attachmentUrls String[] @default([]) // Fixed naming convention
 
   // Issue details
-  priority Priority    @default(MEDIUM)
+  priority Priority @default(MEDIUM)
   category Category
 
-  // Customer-facing
+  // Status tracking
   customerStatus CustomerStatus @default(OPEN)
+  internalStatus InternalStatus @default(NEW)
 
-  // Company-facing
-  internalStatus InternalStatus @default(OPEN)
-
+  // Important dates
   dueDate    DateTime?
   resolvedAt DateTime?
   closedAt   DateTime?
@@ -74,52 +79,107 @@ model Issue {
 
   // Relationships
   customerId Int
-  customer   Customer @relation(fields: [customerId], references: [id])
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
 
-  // Timeline
-  timeline IssueTimeLine[]
-  issueSiteVisit IssueSiteVisit[]
-  IssueAssinedDepartment IssueAssinedDepartment[]
+  timeline               IssueTimeLine[]
+  siteVisits             IssueSiteVisit[]
+  assignedDepartments    IssueAssignedDepartment[]
+  siteVisitRequests      SiteVisitRequest[]
 
-  // Essential indexes only
-  @@index([customerStatus])
-  @@index([internalStatus])
-  @@index([customerId])
+  // Optimized indexes
+  @@index([customerStatus]) // Compound index for customer dashboard
+  @@index([internalStatus, category]) // Compound index for internal tracking
+  @@index([customerId, createdAt])    // Customer's issues chronologically
   @@index([ticketNo])
+  @@index([dueDate]) // For deadline tracking
   @@map("issues")
 }
 
-model IssueAssinedDepartment {
+// Fixed table name consistency
+model IssueAssignedDepartment {
   id String @id @default(cuid())
+  
   issueId String
-  issue Issue @relation(fields: [issueId], references: [id])
-  employeeid String
-  assignTo Employee @relation(fields: [employeeid], references: [id])
+  issue   Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  isStartedWork Boolean @default(false)
+  
+  assignedAt DateTime @default(now())
+  isActive   Boolean  @default(true) // Allow reassignment tracking
+  
+  @@unique([issueId, employeeId, isActive]) // Prevent duplicate active assignments
+  @@index([employeeId, isActive])
+  @@map("issue_assigned_departments")
 }
 
 model IssueSiteVisit {
   id String @id @default(cuid())
+  
   issueId String
-  issue Issue @relation(fields: [issueId], references: [id])
-  status VisitStatus @default(PENDING)
-  scheduled_date DateTime
+  issue   Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  
+  status         VisitStatus @default(SCHEDULED)
+  scheduledDate  DateTime    // Fixed naming convention
+  actualDate     DateTime?   // When visit actually happened
+  notes          String?     @db.Text // Visit notes/findings
+  
   employeeId String
-  employee Employee @relation(fields: [employeeId], references: [id])
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  // One-to-one relationship with site visit request
+  siteVisitRequest SiteVisitRequest?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([employeeId, scheduledDate])
+  @@index([status, scheduledDate])
+  @@map("issue_site_visits")
 }
 
+// Fixed table name consistency
+model SiteVisitRequest {
+  id String @id @default(cuid())
+  
+  issueId String
+  issue   Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  
+  status                SiteVisitRequestStatus
+  requestFromName String
+  requestFromDepartment Department
+  reason                String?                @db.Text // Why site visit is needed
+  urgency               Priority               @default(MEDIUM)
+  
+  requestFromHeadId String
+  requestFromHead   Employee @relation(fields: [requestFromHeadId], references: [id], onDelete: Restrict)
+  
+  // Optional relationship to actual site visit
+  siteVisitId String?     @unique
+  siteVisit   IssueSiteVisit? @relation(fields: [siteVisitId], references: [id])
+  
+  requestedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([status, urgency])
+  @@index([requestFromDepartment, status])
+  @@map("site_visit_requests")
+}
+
+// Fixed table name consistency  
 model IssueTimeLine {
-  id      String @id @default(cuid()) // e.g., "clkv6tv0l000111la"
-  issueId String // References Issue.id
+  id      String @id @default(cuid())
+  issueId String
   issue   Issue  @relation(fields: [issueId], references: [id], onDelete: Cascade)
 
   action  ActionType @default(ISSUE_CREATED)
   comment String?    @db.Text
 
-  // Customer-visible transition
+  // Status transitions
   fromCustomerStatus CustomerStatus?
   toCustomerStatus   CustomerStatus?
-
-  // Internal transition
   fromInternalStatus InternalStatus?
   toInternalStatus   InternalStatus?
 
@@ -127,26 +187,26 @@ model IssueTimeLine {
   fromEmployeeId String?
   toEmployeeId   String?
 
-  // visibility
+  // Metadata
   visibleToCustomer Boolean @default(false)
+  performedBy       String? // Who performed this action
 
   createdAt DateTime @default(now())
 
-  @@index([issueId])
+  @@index([issueId, createdAt]) // Chronological timeline
+  @@index([visibleToCustomer])
   @@map("issue_timeline")
 }
 
-// Your existing enums - keep as is
+// ENUMS - Improved and expanded
+enum CustomerRole {
+  CUSTOMER
+}
+
 enum EmployeeRole {
   ISSUE_MANAGER
-  ENGINEERING_HEAD
-  MANUFACTURING_HEAD
-  FABRICATION_HEAD
-  DESIGN_HEAD
-  SALES_HEAD
-  QUALITY_HEAD
-  SERVICE_HEAD
-  SERVICE_ENGINEERS
+  HEAD
+  SERVICE_ENGINEER
 }
 
 enum CustomerStatus {
@@ -158,11 +218,12 @@ enum CustomerStatus {
 }
 
 enum InternalStatus {
-  OPEN
+  NEW
   ASSIGNED
   REASSIGNED
   TRANSFERRED
   WAITING_FOR_PARTS
+  WAITING_FOR_APPROVAL
   ESCALATED
   RESOLVED
   REOPENED
@@ -171,46 +232,50 @@ enum InternalStatus {
 }
 
 enum ActionType {
-  // Status lifecycle events
+  // Lifecycle events
   ISSUE_CREATED
   ASSIGNED
   REASSIGNED
+  TRANSFERRED
+  ESCALATED
   RESOLVED
   REOPENED
   CLOSED
   CANCELLED
 
-  // Activity / meta events
+  // Activity events
   COMMENT_ADDED
-  SITE_VISIT_REQUEST
-  SITE_VISIT_CONFIRM
+  ATTACHMENT_ADDED
+  ATTACHMENT_REQUESTED
+  SITE_VISIT_REQUESTED
+  SITE_VISIT_SCHEDULED
   SITE_VISIT_COMPLETED
-  TRANSFERRED
+  PRIORITY_CHANGED
 }
 
 enum Priority {
   LOW
   MEDIUM
   HIGH
-  CRITICAL
   URGENT
 }
 
 enum Category {
   HARDWARE_ISSUE
   QUALITY_ISSUE
-  SOFTWARE_ISSUE
   MAINTENANCE
   INSTALLATION
   TRAINING
   WARRANTY_CLAIM
   SERVICING
+  ELECTRICAL_ISSUE
   OTHER
 }
 
-enum VisitStatus{
-  PENDING
-  VISITED
+enum VisitStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
 }
 
 enum Department {
@@ -218,4 +283,16 @@ enum Department {
   SERVICE
   ENGINEERING
   MANUFACTURING
+  FABRICATION
+  DESIGN
+  QUALITY
+}
+
+enum SiteVisitRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SCHEDULED
+  COMPLETED
+  CANCELLED
 }

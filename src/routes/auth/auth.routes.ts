@@ -1,28 +1,18 @@
 import { Router, type Request, type Response } from "express";
+import AuthService from "../../services/auth.service.js";
+import { getOtpAuthController, verifyOtpAuthController, verifyTokenAuthController } from "../../controllers/auth.controller.js";
+import AuthMiddleware from "../../middlewares/auth.middleware.js";
 
 
 
 const AuthRouter: Router = Router();
 
 
+AuthRouter.post("/get-otp", getOtpAuthController);
 
+AuthRouter.post("/verify-otp", verifyOtpAuthController);
 
-AuthRouter.post("/get-otp", (req: Request<{}, {}, { mobile_number: number }>, res: Response) => {
-    const { mobile_number } = req.body;
-    if (!mobile_number) {
-        return res.status(400).send()
-    }
-    
-    try {
-        
-    } catch (error) {
-        
-    }
-});
-
-AuthRouter.post("/verify-token", (req: Request, res: Response) => {
-
-})
+AuthRouter.post("/verify-token", AuthMiddleware.AuthenticateUser, verifyTokenAuthController);
 
 
 export default AuthRouter;
