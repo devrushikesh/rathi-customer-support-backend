@@ -56,7 +56,8 @@ export const verifyOtpAuthController = async (req: Request, res: Response) => {
             message: result.message,
             data: {
                 token: result.data?.token,
-                role: result.data?.role
+                role: result.data?.role,
+                department: result.data?.department
             }
         })
     } catch (error) {
@@ -76,7 +77,8 @@ export const verifyTokenAuthController = async (req: Request, res: Response) => 
             message: "Token verified Successfully!",
             data: {
                 id: req.user.id,
-                role: req.user.role
+                role: req.user.role,
+                department: req.user.department
             }
         })
     } catch (error) {

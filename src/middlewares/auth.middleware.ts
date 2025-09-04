@@ -35,8 +35,7 @@ class AuthMiddleware {
             req.user = {
                 id: verified.id,
                 role: verified.role,
-                iat: verified.iat,
-                exp: verified.exp
+                department: verified.department
             } as JwtPayload<string | number>;
 
             // all good — continue

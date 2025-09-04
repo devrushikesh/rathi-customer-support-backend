@@ -100,12 +100,14 @@ class CommonServices {
         try {
             const timeline = await prisma.issueTimeLine.findMany({
                 where: {
-                    id: issueId
+                    issueId: issueId
                 },
                 orderBy: {
                     createdAt: 'asc' // Chronological order
                 }
             })
+
+
             return {
                 success: true,
                 data: timeline,

@@ -1,3 +1,4 @@
+import { Department } from "@prisma/client";
 import prisma from "../prisma/client.js";
 import { generate_jwt_token, type JwtPayload } from "../utils/jwt.js";
 import otpCache from "./store.service.js";
@@ -120,10 +121,12 @@ class AuthService {
                     data: null
                 }
             }
+            const department = user.role == "CUSTOMER" || user.role == "ISSUE_MANAGER" ? null: user.department;
 
             const payload: JwtPayload<string | number> = {
                 id: user.id,
-                role: data.role
+                role: data.role,
+                department: department
             }
             const token = generate_jwt_token(payload);
 
@@ -140,7 +143,8 @@ class AuthService {
                 message: "Successfully Otp Verified!",
                 data: {
                     token: token,
-                    role: data.role
+                    role: data.role,
+                    department: department
                 }
             }
 

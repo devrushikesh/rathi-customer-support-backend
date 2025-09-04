@@ -5,10 +5,8 @@ import { SECRETE_KEY } from "../config.js";
 export interface JwtPayload<T extends string | number = string> {
   id: T;
   role: string;
-  iat?: number;
-  exp?: number;
+  department?: string | null;
 }
-
 
 // Runtime type guard
 function isJwtPayload<T extends string | number = string>(obj: unknown): obj is JwtPayload<T> {

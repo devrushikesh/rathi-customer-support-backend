@@ -27,28 +27,24 @@ export const getIssuesByStatusController = async (req: Request, res: Response) =
     }
 }
 
-
 export const createIssueController = async (req: Request, res: Response) => {
-    const { machine, description, priority, location, category } = req.body;
+    const { description, priority, projectId } = req.body;
     console.log(req.body);
     console.log("issue creating");
-    
-    
-    if (!machine || !priority || !category || !location || !description || !isValidEnumValue("Priority", priority) || !isValidEnumValue("Category", category)) {
+
+    if (!priority || !projectId || !description || !isValidEnumValue("Priority", priority)) {
         res.status(500).send({
             status: "failure",
             message: "Invalid data",
             data: {}
         })
     }
-   
+
     try {
         const data = {
             description: description,
-            machine: machine,
+            projectId: projectId,
             priority: priority,
-            location: location,
-            category: category,
             customerId: req.user.id
         }
         const result = await CustomerServices.createIssue(data)
@@ -67,3 +63,24 @@ export const createIssueController = async (req: Request, res: Response) => {
     }
 }
 
+export const getProjectsList = async (req: Request, res: Response) => {
+    try {
+        const result = await CustomerServices.fetchProjectsList(req.user.id);
+        if (result.status) {
+            return res.json(result);
+        }
+        else {
+            return res.status(400).json({
+                status: false,
+                data: null,
+                message: "Invalid Request"
+            })
+        }
+    } catch (error) {
+        return res.status(500).json({
+            status: false,
+            data: null,
+            message: "Internal Server Error"
+        })
+    }
+}

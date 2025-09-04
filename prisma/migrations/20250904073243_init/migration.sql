@@ -8,10 +8,10 @@ CREATE TYPE "public"."EmployeeRole" AS ENUM ('ISSUE_MANAGER', 'HEAD', 'SERVICE_E
 CREATE TYPE "public"."CustomerStatus" AS ENUM ('OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED', 'CANCELLED');
 
 -- CreateEnum
-CREATE TYPE "public"."InternalStatus" AS ENUM ('NEW', 'ASSIGNED', 'REASSIGNED', 'TRANSFERRED', 'WAITING_FOR_PARTS', 'WAITING_FOR_APPROVAL', 'ESCALATED', 'RESOLVED', 'REOPENED', 'CLOSED', 'CANCELLED');
+CREATE TYPE "public"."InternalStatus" AS ENUM ('NEW', 'ASSIGNED', 'WORK_STARTED', 'RESOLVED', 'REOPENED', 'CLOSED', 'CANCELLED', 'ATTACHMENT_REQUESTED', 'SITE_VISIT_REQUESTED', 'SITE_VISIT_SCHEDULED', 'SITE_VISIT_COMPLETED');
 
 -- CreateEnum
-CREATE TYPE "public"."ActionType" AS ENUM ('ISSUE_CREATED', 'ASSIGNED', 'REASSIGNED', 'TRANSFERRED', 'ESCALATED', 'RESOLVED', 'REOPENED', 'CLOSED', 'CANCELLED', 'COMMENT_ADDED', 'ATTACHMENT_ADDED', 'ATTACHMENT_REQUESTED', 'SITE_VISIT_REQUESTED', 'SITE_VISIT_SCHEDULED', 'SITE_VISIT_COMPLETED', 'PRIORITY_CHANGED');
+CREATE TYPE "public"."ActionType" AS ENUM ('ISSUE_CREATED', 'ASSIGNED', 'REASSIGNED', 'TRANSFERRED', 'ESCALATED', 'RESOLVED', 'REOPENED', 'CLOSED', 'CANCELLED', 'COMMENT_ADDED', 'WORK_STARTED', 'ATTACHMENT_ADDED', 'ATTACHMENT_REQUESTED', 'SITE_VISIT_REQUESTED', 'SITE_VISIT_REQUEST_REJECTED', 'SITE_VISIT_SCHEDULED', 'SITE_VISIT_COMPLETED');
 
 -- CreateEnum
 CREATE TYPE "public"."Priority" AS ENUM ('LOW', 'MEDIUM', 'HIGH', 'URGENT');
@@ -26,7 +26,7 @@ CREATE TYPE "public"."VisitStatus" AS ENUM ('SCHEDULED', 'COMPLETED', 'CANCELLED
 CREATE TYPE "public"."Department" AS ENUM ('SALES', 'SERVICE', 'ENGINEERING', 'MANUFACTURING', 'FABRICATION', 'DESIGN', 'QUALITY');
 
 -- CreateEnum
-CREATE TYPE "public"."SiteVisitRequestStatus" AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'SCHEDULED', 'COMPLETED', 'CANCELLED');
+CREATE TYPE "public"."SiteVisitRequestStatus" AS ENUM ('PENDING', 'COMPLETED', 'REJECTED');
 
 -- CreateTable
 CREATE TABLE "public"."customers" (
@@ -57,15 +57,29 @@ CREATE TABLE "public"."employees" (
 );
 
 -- CreateTable
+CREATE TABLE "public"."projects" (
+    "id" SERIAL NOT NULL,
+    "projectName" TEXT NOT NULL,
+    "application" TEXT NOT NULL,
+    "machineType" TEXT NOT NULL,
+    "capacity" TEXT NOT NULL,
+    "location" TEXT NOT NULL,
+    "feedSize" TEXT NOT NULL,
+    "finalProductSize" TEXT NOT NULL,
+    "customerId" INTEGER NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "projects_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "public"."issues" (
     "id" TEXT NOT NULL,
     "ticketNo" VARCHAR(20) NOT NULL,
     "description" TEXT NOT NULL,
-    "machine" VARCHAR(100) NOT NULL,
-    "location" VARCHAR(100) NOT NULL,
+    "projectId" INTEGER NOT NULL,
     "attachmentUrls" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "priority" "public"."Priority" NOT NULL DEFAULT 'MEDIUM',
-    "category" "public"."Category" NOT NULL,
     "customerStatus" "public"."CustomerStatus" NOT NULL DEFAULT 'OPEN',
     "internalStatus" "public"."InternalStatus" NOT NULL DEFAULT 'NEW',
     "dueDate" TIMESTAMP(3),
@@ -99,7 +113,9 @@ CREATE TABLE "public"."issue_site_visits" (
     "scheduledDate" TIMESTAMP(3) NOT NULL,
     "actualDate" TIMESTAMP(3),
     "notes" TEXT,
-    "employeeId" TEXT NOT NULL,
+    "workingDepartment" "public"."Department" NOT NULL,
+    "workingHeadId" TEXT NOT NULL,
+    "siteVisitorId" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -113,8 +129,6 @@ CREATE TABLE "public"."site_visit_requests" (
     "status" "public"."SiteVisitRequestStatus" NOT NULL,
     "requestFromName" TEXT NOT NULL,
     "requestFromDepartment" "public"."Department" NOT NULL,
-    "reason" TEXT,
-    "urgency" "public"."Priority" NOT NULL DEFAULT 'MEDIUM',
     "requestFromHeadId" TEXT NOT NULL,
     "siteVisitId" TEXT,
     "requestedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -164,13 +178,16 @@ CREATE INDEX "employees_mobile_no_idx" ON "public"."employees"("mobile_no");
 CREATE INDEX "employees_department_isActive_idx" ON "public"."employees"("department", "isActive");
 
 -- CreateIndex
+CREATE INDEX "projects_id_idx" ON "public"."projects"("id");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "issues_ticketNo_key" ON "public"."issues"("ticketNo");
 
 -- CreateIndex
 CREATE INDEX "issues_customerStatus_idx" ON "public"."issues"("customerStatus");
 
 -- CreateIndex
-CREATE INDEX "issues_internalStatus_category_idx" ON "public"."issues"("internalStatus", "category");
+CREATE INDEX "issues_internalStatus_idx" ON "public"."issues"("internalStatus");
 
 -- CreateIndex
 CREATE INDEX "issues_customerId_createdAt_idx" ON "public"."issues"("customerId", "createdAt");
@@ -188,7 +205,7 @@ CREATE INDEX "issue_assigned_departments_employeeId_isActive_idx" ON "public"."i
 CREATE UNIQUE INDEX "issue_assigned_departments_issueId_employeeId_isActive_key" ON "public"."issue_assigned_departments"("issueId", "employeeId", "isActive");
 
 -- CreateIndex
-CREATE INDEX "issue_site_visits_employeeId_scheduledDate_idx" ON "public"."issue_site_visits"("employeeId", "scheduledDate");
+CREATE INDEX "issue_site_visits_siteVisitorId_scheduledDate_idx" ON "public"."issue_site_visits"("siteVisitorId", "scheduledDate");
 
 -- CreateIndex
 CREATE INDEX "issue_site_visits_status_scheduledDate_idx" ON "public"."issue_site_visits"("status", "scheduledDate");
@@ -197,7 +214,7 @@ CREATE INDEX "issue_site_visits_status_scheduledDate_idx" ON "public"."issue_sit
 CREATE UNIQUE INDEX "site_visit_requests_siteVisitId_key" ON "public"."site_visit_requests"("siteVisitId");
 
 -- CreateIndex
-CREATE INDEX "site_visit_requests_status_urgency_idx" ON "public"."site_visit_requests"("status", "urgency");
+CREATE INDEX "site_visit_requests_status_idx" ON "public"."site_visit_requests"("status");
 
 -- CreateIndex
 CREATE INDEX "site_visit_requests_requestFromDepartment_status_idx" ON "public"."site_visit_requests"("requestFromDepartment", "status");
@@ -207,6 +224,12 @@ CREATE INDEX "issue_timeline_issueId_createdAt_idx" ON "public"."issue_timeline"
 
 -- CreateIndex
 CREATE INDEX "issue_timeline_visibleToCustomer_idx" ON "public"."issue_timeline"("visibleToCustomer");
+
+-- AddForeignKey
+ALTER TABLE "public"."projects" ADD CONSTRAINT "projects_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "public"."customers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."issues" ADD CONSTRAINT "issues_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "public"."projects"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "public"."issues" ADD CONSTRAINT "issues_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "public"."customers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -221,7 +244,10 @@ ALTER TABLE "public"."issue_assigned_departments" ADD CONSTRAINT "issue_assigned
 ALTER TABLE "public"."issue_site_visits" ADD CONSTRAINT "issue_site_visits_issueId_fkey" FOREIGN KEY ("issueId") REFERENCES "public"."issues"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."issue_site_visits" ADD CONSTRAINT "issue_site_visits_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "public"."employees"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "public"."issue_site_visits" ADD CONSTRAINT "issue_site_visits_workingHeadId_fkey" FOREIGN KEY ("workingHeadId") REFERENCES "public"."employees"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."issue_site_visits" ADD CONSTRAINT "issue_site_visits_siteVisitorId_fkey" FOREIGN KEY ("siteVisitorId") REFERENCES "public"."employees"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "public"."site_visit_requests" ADD CONSTRAINT "site_visit_requests_issueId_fkey" FOREIGN KEY ("issueId") REFERENCES "public"."issues"("id") ON DELETE CASCADE ON UPDATE CASCADE;

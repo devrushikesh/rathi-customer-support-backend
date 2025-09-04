@@ -20,10 +20,26 @@ enum Category {
   OTHER = "OTHER",
 }
 
+
+enum InternalStatus {
+  NEW = "NEW",
+  ASSIGNED = "ASSIGNED",
+  IN_PROGRESS = "IN_PROGRESS",
+  REASSIGNED = "REASSIGNED",
+  TRANSFERRED = "TRANSFERRED",
+  WAITING_FOR_PARTS = "WAITING_FOR_PARTS",
+  WAITING_FOR_APPROVAL = "WAITING_FOR_APPROVAL",
+  RESOLVED = "RESOLVED",
+  REOPENED = "REOPENED",
+  CLOSED = "CLOSED",
+  CANCELLED = "CANCELLED",
+}
+
 // Map enum names to actual enums
 const Enums = {
   Priority,
   Category,
+  InternalStatus
 };
 
 // Generic function
