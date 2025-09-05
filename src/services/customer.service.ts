@@ -11,7 +11,6 @@ import prisma from "../prisma/client.js";
 // Types for better type safety
 interface CreateIssueData {
   description: string;
-  priority: Priority;
   projectId: number;
   customerId: number;
   attachmentUrls?: string[];
@@ -76,7 +75,6 @@ class CustomerServices {
           data: {
             description: data.description,
             projectId: data.projectId,
-            priority: data.priority,
             customerId: data.customerId,
             ticketNo: ticketNo,
             attachmentUrls: data.attachmentUrls || []
@@ -88,10 +86,10 @@ class CustomerServices {
           data: {
             issueId: newIssue.id,
             action: 'ISSUE_CREATED',
-            toCustomerStatus: 'OPEN',
+            toCustomerStatus: 'UNDER_REVIEW',
             toInternalStatus: 'NEW',
             visibleToCustomer: true,
-            comment: "Issue Successfully Created."
+            comment: "Issue Successfully Created. Our team review this issue soon."
           }
         });
 
@@ -118,7 +116,7 @@ class CustomerServices {
     }
   }
 
-  static async fetchProjectsList(customerId: number){
+  static async fetchProjectsList(customerId: number) {
     try {
       const projects = await prisma.projects.findMany({
         where: {
@@ -163,8 +161,10 @@ class CustomerServices {
           customerStatus: true,
           description: true,
           ticketNo: true,
+          updatedAt: true,
           createdAt: true,
-          priority: true
+          isAttachmentsRequested: true,
+          isSiteVisitRequested: true
         },
         orderBy: [
           { priority: 'desc' }, // High priority first
@@ -201,7 +201,7 @@ class CustomerServices {
           customerStatus: {
             in: ['CLOSED', 'CANCELLED']
           }
-        }, 
+        },
         select: {
           id: true,
           projectId: true,
@@ -210,7 +210,9 @@ class CustomerServices {
           description: true,
           ticketNo: true,
           createdAt: true,
-          priority: true
+          updatedAt: true,
+          isAttachmentsRequested: true,
+          isSiteVisitRequested: true
         },
         orderBy: {
           closedAt: 'desc' // Most recently closed first
@@ -234,69 +236,6 @@ class CustomerServices {
       };
     }
   }
-
-  /**
-   * Fetch all issues for a customer (both active and closed)
-   */
-  static async fetchAllIssues(customerId: number) {
-    try {
-      const allIssues = await prisma.issue.findMany({
-        where: {
-          customerId: customerId
-        },
-        include: {
-          customer: {
-            select: {
-              id: true,
-              name: true,
-              email: true
-            }
-          }
-        },
-        orderBy: [
-          {
-            customerStatus: 'asc' // Active issues first
-          },
-          {
-            createdAt: 'desc'
-          }
-        ]
-      });
-
-      // Separate active and closed for better organization
-      const activeIssues = allIssues.filter(issue =>
-        !['CLOSED', 'CANCELLED'].includes(issue.customerStatus)
-      );
-      const closedIssues = allIssues.filter(issue =>
-        ['CLOSED', 'CANCELLED'].includes(issue.customerStatus)
-      );
-
-      return {
-        success: true,
-        data: {
-          all: allIssues,
-          active: activeIssues,
-          closed: closedIssues
-        },
-        count: {
-          total: allIssues.length,
-          active: activeIssues.length,
-          closed: closedIssues.length
-        },
-        message: `Found ${allIssues.length} total issues (${activeIssues.length} active, ${closedIssues.length} closed)`
-      };
-
-    } catch (error) {
-      console.error("Failed to fetch all issues:", error);
-      return {
-        success: false,
-        data: { all: [], active: [], closed: [] },
-        count: { total: 0, active: 0, closed: 0 },
-        message: "Failed to fetch issues"
-      };
-    }
-  }
-
 
   /**
    * Get a single issue by ID (only if it belongs to the customer)
@@ -325,7 +264,7 @@ class CustomerServices {
             }
           },
           project: {
-            
+
             select: {
               projectName: true,
               machineType: true,
@@ -356,167 +295,6 @@ class CustomerServices {
         status: false,
         data: null,
         message: "Failed to fetch issue"
-      };
-    }
-  }
-
-  /**
-   * Get customer's issue statistics
-   */
-  static async getIssueStats(customerId: number) {
-    try {
-      const [totalCount, activeCount, closedCount] = await Promise.all([
-        prisma.issue.count({
-          where: { customerId }
-        }),
-        prisma.issue.count({
-          where: {
-            customerId,
-            customerStatus: { notIn: ['CLOSED', 'CANCELLED'] }
-          }
-        }),
-        prisma.issue.count({
-          where: {
-            customerId,
-            customerStatus: { in: ['CLOSED', 'CANCELLED'] }
-          }
-        }),
-      ]);
-
-      return {
-        success: true,
-        data: {
-          total: totalCount,
-          active: activeCount,
-          closed: closedCount
-        },
-        message: "Statistics retrieved successfully"
-      };
-
-    } catch (error) {
-      console.error("Failed to fetch issue statistics:", error);
-      return {
-        success: false,
-        data: {
-          total: 0,
-          active: 0,
-          closed: 0,
-          critical: 0
-        },
-        message: "Failed to fetch statistics"
-      };
-    }
-  }
-
-  /**
-   * Search issues by various criteria
-   */
-  static async searchIssues(customerId: number, searchParams: {
-    query?: string;
-    status?: CustomerStatus[];
-    priority?: Priority[];
-    category?: Category[];
-    dateFrom?: Date;
-    dateTo?: Date;
-    limit?: number;
-    offset?: number;
-  }) {
-    try {
-      const {
-        query,
-        status,
-        priority,
-        category,
-        dateFrom,
-        dateTo,
-        limit = 20,
-        offset = 0
-      } = searchParams;
-
-      const whereClause: any = {
-        customerId: customerId
-      };
-
-      // Text search in description, machine, or location
-      if (query) {
-        whereClause.OR = [
-          { description: { contains: query, mode: 'insensitive' } },
-          { machine: { contains: query, mode: 'insensitive' } },
-          { location: { contains: query, mode: 'insensitive' } },
-          { ticketNo: { contains: query, mode: 'insensitive' } }
-        ];
-      }
-
-      // Filter by status
-      if (status && status.length > 0) {
-        whereClause.customerStatus = { in: status };
-      }
-
-      // Filter by priority
-      if (priority && priority.length > 0) {
-        whereClause.priority = { in: priority };
-      }
-
-      // Filter by category
-      if (category && category.length > 0) {
-        whereClause.category = { in: category };
-      }
-
-      // Date range filter
-      if (dateFrom || dateTo) {
-        whereClause.createdAt = {};
-        if (dateFrom) whereClause.createdAt.gte = dateFrom;
-        if (dateTo) whereClause.createdAt.lte = dateTo;
-      }
-
-      const [issues, totalCount] = await Promise.all([
-        prisma.issue.findMany({
-          where: whereClause,
-          include: {
-            customer: {
-              select: {
-                id: true,
-                name: true,
-                email: true
-              }
-            }
-          },
-          orderBy: [
-            { priority: 'desc' },
-            { createdAt: 'desc' }
-          ],
-          take: limit,
-          skip: offset
-        }),
-        prisma.issue.count({
-          where: whereClause
-        })
-      ]);
-
-      return {
-        success: true,
-        data: issues,
-        pagination: {
-          total: totalCount,
-          limit,
-          offset,
-          hasMore: offset + limit < totalCount
-        },
-        message: `Found ${issues.length} issues matching your search`
-      };
-
-    } catch (error) {
-      console.error("Failed to search issues:", error);
-      return {
-        success: false,
-        data: [],
-        pagination: {
-          total: 0,
-          limit: 0,
-          offset: 0,
-          hasMore: false
-        },
-        message: "Failed to search issues"
       };
     }
   }

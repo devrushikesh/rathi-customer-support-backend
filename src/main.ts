@@ -24,6 +24,6 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 
 // Start Listening the Server
-app.listen(SERVER_PORT, () => {
-    console.log(`Server is running on port ${SERVER_PORT}`);
-})
+app.listen(SERVER_PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server is running on http://localhost:${SERVER_PORT}`);
+});

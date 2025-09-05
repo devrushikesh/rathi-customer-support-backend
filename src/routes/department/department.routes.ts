@@ -6,13 +6,13 @@ const DepartmentRoutes = express.Router();
 
 DepartmentRoutes.get("/get-issues-by-status/:status", async (req: Request, res: Response) => {
     console.log("called");
-    
+
 
     const status = req.params.status
     const headId = req.user.id;
     if (!headId || !status || !['NEW', 'IN_PROGRESS', 'CLOSED'].includes(status)) {
         // console.log(status);
-        
+
         return res.status(400).json({
             status: false,
             data: null,
@@ -78,13 +78,41 @@ DepartmentRoutes.post("/start-working", async (req: Request, res: Response) => {
 
 
 // This route is used for to create the request for site visit to the service head
-DepartmentRoutes.post("/request-site-visit", (req:Request, res: Response) => {
+DepartmentRoutes.post("/request-site-visit", async (req: Request, res: Response) => {
+    const { issueId } = req.body;
 
+    if (!issueId || req.user.department == 'SERVICE') {
+        return res.status(400).json({
+            status: false,
+            data: null,
+            message: "Bad Request"
+        });
+    }
+
+    try {
+        const result = await DepartmentService.requestSiteVisitToServiceHead(req.user.id, issueId);
+        if (result.status) {
+            return res.json(result);
+        }
+        else {
+            return res.status(400).json({
+                status: false,
+                data: null,
+                message: "Bad Request"
+            });
+        }
+    } catch (error) {
+        return res.status(500).json({
+            status: false,
+            data: null,
+            message: "Bad Request"
+        });
+    }
 })
 
 // This route is only used for Service head
-DepartmentRoutes.post("/get-requests-list" , (req: Request, res: Response) => {
-    
+DepartmentRoutes.post("/get-requests-list", (req: Request, res: Response) => {
+
 })
 
 

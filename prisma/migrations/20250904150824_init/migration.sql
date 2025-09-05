@@ -5,10 +5,10 @@ CREATE TYPE "public"."CustomerRole" AS ENUM ('CUSTOMER');
 CREATE TYPE "public"."EmployeeRole" AS ENUM ('ISSUE_MANAGER', 'HEAD', 'SERVICE_ENGINEER');
 
 -- CreateEnum
-CREATE TYPE "public"."CustomerStatus" AS ENUM ('OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED', 'CANCELLED');
+CREATE TYPE "public"."CustomerStatus" AS ENUM ('UNDER_REVIEW', 'OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED', 'CANCELLED');
 
 -- CreateEnum
-CREATE TYPE "public"."InternalStatus" AS ENUM ('NEW', 'ASSIGNED', 'WORK_STARTED', 'RESOLVED', 'REOPENED', 'CLOSED', 'CANCELLED', 'ATTACHMENT_REQUESTED', 'SITE_VISIT_REQUESTED', 'SITE_VISIT_SCHEDULED', 'SITE_VISIT_COMPLETED');
+CREATE TYPE "public"."InternalStatus" AS ENUM ('NEW', 'OPEN', 'IN_PROGRESS', 'TRANSFERRED', 'RESOLVED', 'REOPENED', 'CLOSED', 'CANCELLED');
 
 -- CreateEnum
 CREATE TYPE "public"."ActionType" AS ENUM ('ISSUE_CREATED', 'ASSIGNED', 'REASSIGNED', 'TRANSFERRED', 'ESCALATED', 'RESOLVED', 'REOPENED', 'CLOSED', 'CANCELLED', 'COMMENT_ADDED', 'WORK_STARTED', 'ATTACHMENT_ADDED', 'ATTACHMENT_REQUESTED', 'SITE_VISIT_REQUESTED', 'SITE_VISIT_REQUEST_REJECTED', 'SITE_VISIT_SCHEDULED', 'SITE_VISIT_COMPLETED');
@@ -80,8 +80,11 @@ CREATE TABLE "public"."issues" (
     "projectId" INTEGER NOT NULL,
     "attachmentUrls" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "priority" "public"."Priority" NOT NULL DEFAULT 'MEDIUM',
-    "customerStatus" "public"."CustomerStatus" NOT NULL DEFAULT 'OPEN',
+    "latestStatusId" TEXT,
+    "customerStatus" "public"."CustomerStatus" NOT NULL DEFAULT 'UNDER_REVIEW',
     "internalStatus" "public"."InternalStatus" NOT NULL DEFAULT 'NEW',
+    "isSiteVisitRequested" BOOLEAN NOT NULL DEFAULT false,
+    "isAttachmentsRequested" BOOLEAN NOT NULL DEFAULT false,
     "dueDate" TIMESTAMP(3),
     "resolvedAt" TIMESTAMP(3),
     "closedAt" TIMESTAMP(3),
@@ -230,6 +233,9 @@ ALTER TABLE "public"."projects" ADD CONSTRAINT "projects_customerId_fkey" FOREIG
 
 -- AddForeignKey
 ALTER TABLE "public"."issues" ADD CONSTRAINT "issues_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "public"."projects"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."issues" ADD CONSTRAINT "issues_latestStatusId_fkey" FOREIGN KEY ("latestStatusId") REFERENCES "public"."issue_timeline"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "public"."issues" ADD CONSTRAINT "issues_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "public"."customers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

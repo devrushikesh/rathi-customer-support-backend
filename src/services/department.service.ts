@@ -14,7 +14,24 @@ class DepartmentService {
                             isStartedWork: false
                         }
                     }
-                }
+                },
+                select: {
+                    id: true,
+                    internalStatus: true,
+                    customerStatus: true,
+                    projectId: true,
+                    ticketNo: true,
+                    description: true,
+                    updatedAt: true,
+                    createdAt: true,
+                    isAttachmentsRequested: true,
+                    isSiteVisitRequested: true,
+                    latestStatus: {
+                        select: {
+                            action: true,
+                        },
+                    },
+                },
             })
             return {
                 status: true,
@@ -44,7 +61,24 @@ class DepartmentService {
                             isStartedWork: true
                         }
                     }
-                }
+                },
+                select: {
+                    id: true,
+                    internalStatus: true,
+                    customerStatus: true,
+                    projectId: true,
+                    ticketNo: true,
+                    description: true,
+                    updatedAt: true,
+                    createdAt: true,
+                    isAttachmentsRequested: true,
+                    isSiteVisitRequested: true,
+                    latestStatus: {
+                        select: {
+                            action: true,
+                        },
+                    },
+                },
             })
             return {
                 status: true,
@@ -172,7 +206,24 @@ class DepartmentService {
                             isStartedWork: true
                         }
                     }
-                }
+                },
+                select: {
+                    id: true,
+                    internalStatus: true,
+                    customerStatus: true,
+                    projectId: true,
+                    ticketNo: true,
+                    description: true,
+                    updatedAt: true,
+                    createdAt: true,
+                    isAttachmentsRequested: true,
+                    isSiteVisitRequested: true,
+                    latestStatus: {
+                        select: {
+                            action: true,
+                        },
+                    },
+                },
             })
             return {
                 status: true,
@@ -209,23 +260,25 @@ class DepartmentService {
                     data: { isStartedWork: true }
                 });
 
-                const issue = await tx.issue.update({
-                    where: { id: issueId },
-                    data: {
-                        customerStatus: "IN_PROGRESS",
-                        internalStatus: "WORK_STARTED"
-                    }
-                });
-
-                await tx.issueTimeLine.create({
+                const latestIssueTimeLineEntry = await tx.issueTimeLine.create({
                     data: {
                         issueId,
                         action: 'WORK_STARTED',
                         fromCustomerStatus: "OPEN",
                         toCustomerStatus: "IN_PROGRESS",
-                        fromInternalStatus: "ASSIGNED",
-                        toInternalStatus: "WORK_STARTED",
-                        comment: "Issue taken up for processing"
+                        fromInternalStatus: "OPEN",
+                        toInternalStatus: "IN_PROGRESS",
+                        comment: "Issue taken up for processing",
+                        visibleToCustomer: true
+                    }
+                });
+
+                const issue = await tx.issue.update({
+                    where: { id: issueId },
+                    data: {
+                        customerStatus: "IN_PROGRESS",
+                        internalStatus: "IN_PROGRESS",
+                        latestStatusId: latestIssueTimeLineEntry.id
                     }
                 });
 
@@ -247,7 +300,7 @@ class DepartmentService {
         }
     }
     // This Service not for 
-    static async needSiteVisitRequest(employeeId: string, issueId: string) {
+    static async requestSiteVisitToServiceHead(employeeId: string, issueId: string) {
         try {
             const assignment = await prisma.issueAssignedDepartment.findFirst({
                 where: {
@@ -284,12 +337,10 @@ class DepartmentService {
                 });
 
                 // 2. Add timeline record
-                await tx.issueTimeLine.create({
+                const latestIssueTimeLineEntry = await tx.issueTimeLine.create({
                     data: {
                         issueId,
                         action: 'SITE_VISIT_REQUESTED',
-                        fromInternalStatus: 'WORK_STARTED',
-                        toInternalStatus: 'SITE_VISIT_REQUESTED',
                         comment: "Site visit scheduling requested; awaiting Service Head assignment."
                     }
                 });
@@ -297,7 +348,7 @@ class DepartmentService {
                 // 3. Update issue status
                 await tx.issue.update({
                     where: { id: issueId },
-                    data: { internalStatus: 'SITE_VISIT_REQUESTED' }
+                    data: { latestStatusId: latestIssueTimeLineEntry.id }
                 });
             });
 
@@ -341,7 +392,7 @@ class DepartmentService {
                 };
             }
 
-            await prisma.issueTimeLine.create({
+            const latestIssueTimeLineEntry = await prisma.issueTimeLine.create({
                 data: {
                     issueId,
                     action: "COMMENT_ADDED",
@@ -349,6 +400,16 @@ class DepartmentService {
                     performedBy: employeeId,
                 }
             });
+
+            await prisma.issue.update({
+                where: {
+                    id: issueId
+                },
+                data: {
+                    latestStatusId: latestIssueTimeLineEntry.id
+                }
+            })
+
 
             return {
                 status: true,
@@ -411,25 +472,25 @@ class DepartmentService {
                     }
                 });
 
+                const latestIssueTimeLineEntry = await tx.issueTimeLine.create({
+                    data: {
+                        issueId,
+                        action: 'SITE_VISIT_SCHEDULED',
+                        visibleToCustomer: true,
+                        comment: `Site visit scheduled for ${scheduledDate} by Service Engineer ${visitor.name} (Mobile: ${visitor.mobile_no}).`
+                    }
+                })
+
                 await tx.issue.update({
                     where: {
                         id: issueId
                     },
                     data: {
-                        internalStatus: 'SITE_VISIT_SCHEDULED'
+                        latestStatusId: latestIssueTimeLineEntry.id
                     }
                 })
 
-                await tx.issueTimeLine.create({
-                    data: {
-                        issueId,
-                        action: 'SITE_VISIT_SCHEDULED',
-                        fromInternalStatus: 'SITE_VISIT_REQUESTED',
-                        toInternalStatus: 'SITE_VISIT_SCHEDULED',
-                        visibleToCustomer: true,
-                        comment: `Site visit scheduled for ${scheduledDate} by Service Engineer ${visitor.name} (Mobile: ${visitor.mobile_no}).`
-                    }
-                })
+
 
                 await tx.siteVisitRequest.update({
                     where: {
@@ -458,8 +519,7 @@ class DepartmentService {
         }
     }
 
-
-    static async createSiteVisitScheduleForServoceDepartments(employeeId: string, issueId: string, visitorId: string, scheduledDate: Date) {
+    static async createSiteVisitScheduleForServiceDepartments(employeeId: string, issueId: string, visitorId: string, scheduledDate: Date) {
         try {
 
             const visitor = await prisma.employee.findUnique({
@@ -489,25 +549,25 @@ class DepartmentService {
                     }
                 });
 
+                const latestIssueTimeLineEntry = await tx.issueTimeLine.create({
+                    data: {
+                        issueId,
+                        action: 'SITE_VISIT_SCHEDULED',
+                        visibleToCustomer: true,
+                        comment: `Site visit scheduled for ${scheduledDate} by Service Engineer ${visitor.name} (Mobile: ${visitor.mobile_no}).`
+                    }
+                })
+
                 await tx.issue.update({
                     where: {
                         id: issueId
                     },
                     data: {
-                        internalStatus: 'SITE_VISIT_SCHEDULED'
+                        latestStatusId: latestIssueTimeLineEntry.id
                     }
                 })
 
-                await tx.issueTimeLine.create({
-                    data: {
-                        issueId,
-                        action: 'SITE_VISIT_SCHEDULED',
-                        fromInternalStatus: 'SITE_VISIT_REQUESTED',
-                        toInternalStatus: 'SITE_VISIT_SCHEDULED',
-                        visibleToCustomer: true,
-                        comment: `Site visit scheduled for ${scheduledDate} by Service Engineer ${visitor.name} (Mobile: ${visitor.mobile_no}).`
-                    }
-                })
+
             });
 
             return {
@@ -515,7 +575,7 @@ class DepartmentService {
                 data: result,
                 message: "Site visit scheduled successfully"
             };
-            
+
         } catch (error) {
             console.error("Error scheduling site visit:", error);
             return {

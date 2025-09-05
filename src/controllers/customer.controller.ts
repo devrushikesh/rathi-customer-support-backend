@@ -28,11 +28,11 @@ export const getIssuesByStatusController = async (req: Request, res: Response) =
 }
 
 export const createIssueController = async (req: Request, res: Response) => {
-    const { description, priority, projectId } = req.body;
+    const { description, projectId } = req.body;
     console.log(req.body);
     console.log("issue creating");
 
-    if (!priority || !projectId || !description || !isValidEnumValue("Priority", priority)) {
+    if ( !projectId || !description) {
         res.status(500).send({
             status: "failure",
             message: "Invalid data",
@@ -44,7 +44,6 @@ export const createIssueController = async (req: Request, res: Response) => {
         const data = {
             description: description,
             projectId: projectId,
-            priority: priority,
             customerId: req.user.id
         }
         const result = await CustomerServices.createIssue(data)
@@ -64,6 +63,7 @@ export const createIssueController = async (req: Request, res: Response) => {
 }
 
 export const getProjectsList = async (req: Request, res: Response) => {
+    
     try {
         const result = await CustomerServices.fetchProjectsList(req.user.id);
         if (result.status) {

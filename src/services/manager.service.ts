@@ -11,7 +11,19 @@ class ManagerServices {
                 },
                 orderBy: {
                     createdAt: 'asc' // Chronological order
-                }
+                },
+                select: {
+                    id: true,
+                    internalStatus: true,
+                    customerStatus: true,
+                    projectId: true,
+                    ticketNo: true,
+                    description: true,
+                    updatedAt: true,
+                    createdAt: true,
+                    isAttachmentsRequested: true,
+                    isSiteVisitRequested: true
+                },
             })
 
             return {
@@ -40,7 +52,24 @@ class ManagerServices {
                 },
                 orderBy: {
                     createdAt: 'asc' // Chronological order
-                }
+                },
+                select: {
+                    id: true,
+                    internalStatus: true,
+                    customerStatus: true,
+                    projectId: true,
+                    ticketNo: true,
+                    description: true,
+                    updatedAt: true,
+                    createdAt: true,
+                    isAttachmentsRequested: true,
+                    isSiteVisitRequested: true,
+                    latestStatus: {
+                        select: {
+                            action: true,
+                        },
+                    },
+                },
             });
             return {
                 status: true,
@@ -67,7 +96,24 @@ class ManagerServices {
                 },
                 orderBy: {
                     createdAt: 'asc' // Chronological order
-                }
+                },
+                select: {
+                    id: true,
+                    internalStatus: true,
+                    customerStatus: true,
+                    projectId: true,
+                    ticketNo: true,
+                    description: true,
+                    updatedAt: true,
+                    createdAt: true,
+                    isAttachmentsRequested: true,
+                    isSiteVisitRequested: true,
+                    latestStatus: {
+                        select: {
+                            action: true,
+                        },
+                    },
+                },
             });
 
             return {
@@ -145,7 +191,7 @@ class ManagerServices {
                 })
 
                 if (isAssignmentExist) {
-                    throw new Error(`This Issue Already assigned to the ${isAssignmentExist.employeeId } department`);
+                    throw new Error(`This Issue Already assigned to the ${isAssignmentExist.employeeId} department`);
                 }
 
                 const newAssignment = await tx.issueAssignedDepartment.create({
@@ -155,23 +201,26 @@ class ManagerServices {
                     }
                 })
 
+                const newTimeLineEntry = await tx.issueTimeLine.create({
+                    data: {
+                        issueId: issueId,
+                        fromInternalStatus: 'NEW',
+                        toInternalStatus: 'OPEN',
+                        action: 'ASSIGNED',
+                        comment: `Issue Assigned to ${employee.name} - ${employee.department} Head.`,
+                        performedBy: managerId
+                    }
+                })
+
+
                 await tx.issue.update({
                     where: {
                         id: issueId
                     },
                     data: {
-                        internalStatus: 'ASSIGNED'
-                    }
-                })
-
-                await tx.issueTimeLine.create({
-                    data: {
-                        issueId: issueId,
-                        fromInternalStatus: 'NEW',
-                        toInternalStatus: 'ASSIGNED',
-                        action: 'ASSIGNED',
-                        comment: `Issue Assigned to ${employee.name} - ${employee.department} Head.`,
-                        performedBy: managerId
+                        internalStatus: 'OPEN',
+                        customerStatus: 'OPEN',
+                        latestStatusId: newTimeLineEntry.id
                     }
                 })
 
@@ -192,64 +241,64 @@ class ManagerServices {
         }
     }
 
-      /**
-   * Get a single issue by ID (only if it belongs to the customer)
-   */
-  static async getIssueById(issueId: string, managerId: string) {
-    try {
+    /**
+ * Get a single issue by ID (only if it belongs to the customer)
+ */
+    static async getIssueById(issueId: string, managerId: string) {
+        try {
 
-      const issue = await prisma.issue.findFirst({
-        where: {
-          id: issueId
-        },
-        include: {
-          customer: {
-            select: {
-              id: true,
-              name: true,
-              email: true
+            const issue = await prisma.issue.findFirst({
+                where: {
+                    id: issueId
+                },
+                include: {
+                    customer: {
+                        select: {
+                            id: true,
+                            name: true,
+                            email: true
+                        }
+                    },
+                    timeline: {
+                        orderBy: {
+                            createdAt: 'asc'
+                        }
+                    },
+                    project: {
+
+                        select: {
+                            projectName: true,
+                            machineType: true,
+                            capacity: true,
+                            location: true,
+                        }
+                    }
+                }
+            });
+
+            if (!issue) {
+                return {
+                    status: false,
+                    data: null,
+                    message: "Issue not found or access denied"
+                };
             }
-          },
-          timeline: {
-            orderBy: {
-              createdAt: 'asc'
-            }
-          },
-          project: {
-            
-            select: {
-              projectName: true,
-              machineType: true,
-              capacity: true,
-              location: true,
-            }
-          }
+
+            return {
+                status: true,
+                data: issue,
+                message: `Issue ${issue.ticketNo} retrieved successfully`
+            };
+
+        } catch (error) {
+            console.error("Failed to fetch issue:", error);
+            return {
+                status: false,
+                data: null,
+                message: "Failed to fetch issue"
+            };
         }
-      });
-
-      if (!issue) {
-        return {
-          status: false,
-          data: null,
-          message: "Issue not found or access denied"
-        };
-      }
-
-      return {
-        status: true,
-        data: issue,
-        message: `Issue ${issue.ticketNo} retrieved successfully`
-      };
-
-    } catch (error) {
-      console.error("Failed to fetch issue:", error);
-      return {
-        status: false,
-        data: null,
-        message: "Failed to fetch issue"
-      };
     }
-  }
 
 }
 

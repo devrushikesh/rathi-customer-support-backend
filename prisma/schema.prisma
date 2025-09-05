@@ -85,9 +85,16 @@ model Issue {
   // Issue details
   priority Priority @default(MEDIUM)
 
+
+  latestStatusId String? 
+  latestStatus IssueTimeLine? @relation("LatestStatusRelation", fields: [latestStatusId], references: [id])
+
   // Status tracking
-  customerStatus CustomerStatus @default(OPEN)
+  customerStatus CustomerStatus @default(UNDER_REVIEW)
   internalStatus InternalStatus @default(NEW)
+
+  isSiteVisitRequested Boolean @default(false)
+  isAttachmentsRequested Boolean @default(false)
 
   // Important dates
   dueDate    DateTime?
@@ -102,7 +109,7 @@ model Issue {
   customerId Int
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
 
-  timeline            IssueTimeLine[]
+  timeline            IssueTimeLine[] @relation("TimelineRelation")
   siteVisits          IssueSiteVisit[]
   assignedDepartments IssueAssignedDepartment[]
   siteVisitRequests   SiteVisitRequest[]
@@ -172,6 +179,7 @@ model SiteVisitRequest {
 
   issueId String
   issue   Issue  @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  
 
   status                SiteVisitRequestStatus
   requestFromName       String
@@ -196,7 +204,7 @@ model SiteVisitRequest {
 model IssueTimeLine {
   id      String @id @default(cuid())
   issueId String
-  issue   Issue  @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  issue   Issue  @relation("TimelineRelation", fields: [issueId], references: [id], onDelete: Cascade)
 
   action  ActionType @default(ISSUE_CREATED)
   comment String?    @db.Text
@@ -220,6 +228,7 @@ model IssueTimeLine {
   @@index([issueId, createdAt]) // Chronological timeline
   @@index([visibleToCustomer])
   @@map("issue_timeline")
+  Issue Issue[] @relation("LatestStatusRelation")
 }
 
 // ENUMS - Improved and expanded
@@ -234,6 +243,7 @@ enum EmployeeRole {
 }
 
 enum CustomerStatus {
+  UNDER_REVIEW
   OPEN
   IN_PROGRESS
   RESOLVED
@@ -243,20 +253,13 @@ enum CustomerStatus {
 
 enum InternalStatus {
   NEW
-  ASSIGNED
-  WORK_STARTED
-  // REASSIGNED
-  // TRANSFERRED
-  // ESCALATED
+  OPEN
+  IN_PROGRESS
+  TRANSFERRED
   RESOLVED
   REOPENED
   CLOSED
   CANCELLED
-
-  ATTACHMENT_REQUESTED
-  SITE_VISIT_REQUESTED
-  SITE_VISIT_SCHEDULED
-  SITE_VISIT_COMPLETED
 }
 
 enum ActionType {
