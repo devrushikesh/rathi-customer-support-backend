@@ -26,9 +26,6 @@ interface IssueWithTimeline extends Issue {
 
 class CustomerServices {
 
-  /**
-   * Create a new issue for a customer
-   */
   static async createIssue(data: CreateIssueData) {
     try {
       const year = new Date().getFullYear();
@@ -142,9 +139,6 @@ class CustomerServices {
     }
   }
 
-  /**
-   * Fetch all active issues for a customer (not closed/cancelled)
-   */
   static async fetchActiveIssues(customerId: number) {
     try {
       const activeIssues = await prisma.issue.findMany({
@@ -190,9 +184,6 @@ class CustomerServices {
     }
   }
 
-  /**
-   * Fetch all closed issues for a customer
-   */
   static async fetchClosedIssues(customerId: number) {
     try {
       const closedIssues = await prisma.issue.findMany({
@@ -237,9 +228,38 @@ class CustomerServices {
     }
   }
 
-  /**
-   * Get a single issue by ID (only if it belongs to the customer)
-   */
+  static async getProjectById(projectId: number, customerId: number) {
+    try {
+      const project = await prisma.projects.findFirst({
+        where: {
+          id: projectId,
+          customerId: customerId,
+        },
+      });
+
+      if (!project) {
+        return {
+          status: false,
+          data: null,
+          message: "Project not found",
+        };
+      }
+
+      return {
+        status: true,
+        data: project,
+        message: "Project fetched successfully",
+      };
+    } catch (error: any) {
+      console.error("Error fetching project:", error);
+      return {
+        status: false,
+        data: null,
+        message: error.message || "Something went wrong while fetching project",
+      };
+    }
+  }
+
   static async getIssueById(issueId: string, customerId: number) {
     try {
       const issue = await prisma.issue.findFirst({
@@ -252,7 +272,8 @@ class CustomerServices {
             select: {
               id: true,
               name: true,
-              email: true
+              email: true,
+              mobile_no: true
             }
           },
           timeline: {
@@ -260,7 +281,7 @@ class CustomerServices {
               visibleToCustomer: true
             },
             orderBy: {
-              createdAt: 'asc'
+              createdAt: 'desc'
             }
           },
           project: {
@@ -270,6 +291,7 @@ class CustomerServices {
               machineType: true,
               capacity: true,
               location: true,
+              createdAt: true
             }
           }
         }

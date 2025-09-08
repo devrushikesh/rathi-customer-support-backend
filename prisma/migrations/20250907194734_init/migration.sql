@@ -85,6 +85,7 @@ CREATE TABLE "public"."issues" (
     "internalStatus" "public"."InternalStatus" NOT NULL DEFAULT 'NEW',
     "isSiteVisitRequested" BOOLEAN NOT NULL DEFAULT false,
     "isAttachmentsRequested" BOOLEAN NOT NULL DEFAULT false,
+    "isSiteVisitScheduled" BOOLEAN NOT NULL DEFAULT false,
     "dueDate" TIMESTAMP(3),
     "resolvedAt" TIMESTAMP(3),
     "closedAt" TIMESTAMP(3),
@@ -129,6 +130,7 @@ CREATE TABLE "public"."issue_site_visits" (
 CREATE TABLE "public"."site_visit_requests" (
     "id" TEXT NOT NULL,
     "issueId" TEXT NOT NULL,
+    "ticketNo" TEXT NOT NULL,
     "status" "public"."SiteVisitRequestStatus" NOT NULL,
     "requestFromName" TEXT NOT NULL,
     "requestFromDepartment" "public"."Department" NOT NULL,

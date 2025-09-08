@@ -95,6 +95,7 @@ model Issue {
 
   isSiteVisitRequested Boolean @default(false)
   isAttachmentsRequested Boolean @default(false)
+  isSiteVisitScheduled Boolean @default(false)
 
   // Important dates
   dueDate    DateTime?
@@ -179,7 +180,8 @@ model SiteVisitRequest {
 
   issueId String
   issue   Issue  @relation(fields: [issueId], references: [id], onDelete: Cascade)
-  
+
+  ticketNo String
 
   status                SiteVisitRequestStatus
   requestFromName       String

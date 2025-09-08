@@ -256,12 +256,13 @@ class ManagerServices {
                         select: {
                             id: true,
                             name: true,
-                            email: true
+                            email: true,
+                            mobile_no: true
                         }
                     },
                     timeline: {
                         orderBy: {
-                            createdAt: 'asc'
+                            createdAt: 'desc'
                         }
                     },
                     project: {
@@ -271,6 +272,7 @@ class ManagerServices {
                             machineType: true,
                             capacity: true,
                             location: true,
+                            createdAt: true
                         }
                     }
                 }
