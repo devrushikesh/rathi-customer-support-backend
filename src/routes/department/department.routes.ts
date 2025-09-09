@@ -7,7 +7,7 @@ const DepartmentRoutes = express.Router();
 
 
 DepartmentRoutes.post("/add-comment-to-issue", async (req: Request, res: Response) => {
-  const {issueId, comment, isVisibleToCustomer} = req.body;
+  const { issueId, comment, isVisibleToCustomer } = req.body;
   if (!issueId || !comment || typeof isVisibleToCustomer != 'boolean') {
     return res.status(400).json({
       status: false,
@@ -136,33 +136,33 @@ DepartmentRoutes.post("/request-site-visit", async (req: Request, res: Response)
 
 
 DepartmentRoutes.get("/get-site-visits-list-by-status/:status", async (req: Request, res: Response) => {
-    try {
-      const { status } = req.params;
+  try {
+    const { status } = req.params;
 
-      // validate status
-      if (!status || !Object.values(VisitStatus).includes(status as VisitStatus)) {
-        return res.status(400).json({
-          status: false,
-          data: null,
-          message: "Invalid status provided",
-        });
-      }
-
-      const response = await DepartmentService.getSiteVisistsListByStatus(
-        status as VisitStatus
-      );
-
-      return res.status(response.status ? 200 : 500).json(response);
-    } catch (error: any) {
-      console.error("Error fetching site visits:", error);
-      return res.status(500).json({
+    // validate status
+    if (!status || !Object.values(VisitStatus).includes(status as VisitStatus)) {
+      return res.status(400).json({
         status: false,
         data: null,
-        message: "Internal server error while fetching site visits",
-        error: error.message,
+        message: "Invalid status provided",
       });
     }
+
+    const response = await DepartmentService.getSiteVisistsListByStatus(
+      status as VisitStatus
+    );
+
+    return res.status(response.status ? 200 : 500).json(response);
+  } catch (error: any) {
+    console.error("Error fetching site visits:", error);
+    return res.status(500).json({
+      status: false,
+      data: null,
+      message: "Internal server error while fetching site visits",
+      error: error.message,
+    });
   }
+}
 );
 
 /**
@@ -208,6 +208,69 @@ DepartmentRoutes.post("/reject-site-visit-request", async (req: Request, res: Re
     });
   }
 });
+
+
+DepartmentRoutes.post("/complete-scheduled-site-visit/:siteVisitId", async (req: Request, res: Response) => {
+  const headId = req.user?.id; // assuming `req.user` is populated by auth middleware
+  const siteVisitId = req.params.siteVisitId;
+
+  if (!headId || !siteVisitId) {
+    return res.status(400).json({
+      status: false,
+      data: null,
+      message: "Invalid Request"
+    });
+  }
+
+  try {
+    const result = await DepartmentService.completeScheduledSiteVisit(headId, siteVisitId);
+
+    if (result.status) {
+      return res.json(result);
+    } else {
+      return res.status(400).json(result);
+    }
+  } catch (error) {
+    console.error("Error completing site visit:", error);
+    return res.json({
+      status: false,
+      data: null,
+      message: "Something went wrong"
+    });
+  }
+})
+
+
+DepartmentRoutes.post("/cancel-scheduled-site-visit/:siteVisitId", async (req: Request, res: Response) => {
+  const headId = req.user?.id; // from auth middleware
+  const siteVisitId = req.params.siteVisitId;
+  const { remark } = req.body;
+
+  if (!headId || !siteVisitId) {
+    return res.status(400).json({
+      status: false,
+      data: null,
+      message: "Invalid Request"
+    });
+  }
+
+  try {
+    const result = await DepartmentService.cancelScheduledSiteVisit(headId, siteVisitId, remark);
+
+    if (result.status) {
+      return res.json(result);
+    } else {
+      return res.status(400).json(result);
+    }
+  } catch (error) {
+    console.error("Error cancelling site visit:", error);
+    return res.json({
+      status: false,
+      data: null,
+      message: "Something went wrong"
+    });
+  }
+})
 
 
 /**
@@ -319,7 +382,7 @@ DepartmentRoutes.post("/create-other-department-site-visit", async (req: Request
     }
 
     console.log(scheduledDateObj);
-    
+
     // Call the service function
     const result = await DepartmentService.createSiteVisitScheduleForOtherDepartments(
       req.user.id,
@@ -396,6 +459,39 @@ DepartmentRoutes.post("/create-own-department-site-visit", async (req: Request, 
       status: false,
       data: null,
       message: "Internal server error",
+    });
+  }
+});
+
+DepartmentRoutes.post("/mark-issue-resolved", async (req: Request, res: Response) => {
+  try {
+    const { issueId, remark } = req.body;
+
+    // 1. Input validation
+    if (!issueId) {
+      return res.status(400).json({
+        status: false,
+        data: null,
+        message: "Missing required fields: headId and issueId",
+      });
+    }
+
+    // 2. Call service
+    const result = await DepartmentService.markResolveIssue(req.user.id, issueId, remark);
+
+    // 3. Respond with success
+    return res.status(200).json({
+      status: true,
+      message: "Issue marked as resolved successfully",
+      data: null, // updated issue + timelines (so frontend can refresh directly)
+    });
+  } catch (error: any) {
+    console.error("Error in /mark-issue-resolved:", error);
+
+    return res.status(500).json({
+      status: false,
+      message: error.message || "Failed to resolve issue",
+      data: null
     });
   }
 });

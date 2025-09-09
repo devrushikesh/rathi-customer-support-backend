@@ -10,7 +10,7 @@ class ManagerServices {
                     internalStatus: 'NEW'
                 },
                 orderBy: {
-                    createdAt: 'asc' // Chronological order
+                    createdAt: 'desc' // Chronological order
                 },
                 select: {
                     id: true,
@@ -51,7 +51,7 @@ class ManagerServices {
                     }
                 },
                 orderBy: {
-                    createdAt: 'asc' // Chronological order
+                    createdAt: 'desc' // Chronological order
                 },
                 select: {
                     id: true,
@@ -95,7 +95,7 @@ class ManagerServices {
                     internalStatus: status,
                 },
                 orderBy: {
-                    createdAt: 'asc' // Chronological order
+                    createdAt: 'desc' // Chronological order
                 },
                 select: {
                     id: true,

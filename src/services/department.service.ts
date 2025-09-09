@@ -199,7 +199,7 @@ class DepartmentService {
                             location: true,
                             createdAt: true
                         }
-                    }
+                    },
                 }
             });
 
@@ -752,12 +752,23 @@ Mobile: ${visitor.mobile_no}`
                     }
                 });
 
+                const scheduled = new Date(scheduledDate);
+                const formattedDate = scheduled.toLocaleDateString("en-GB", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric"
+                });
+
+
                 const latestIssueTimeLineEntry = await tx.issueTimeLine.create({
                     data: {
                         issueId,
                         action: 'SITE_VISIT_SCHEDULED',
                         visibleToCustomer: true,
-                        comment: `Site visit scheduled for ${scheduledDate} by Service Engineer ${visitor.name} (Mobile: ${visitor.mobile_no}).`
+                        comment: `Site visit scheduled on ${formattedDate}.
+
+Assigned Service Engineer: ${visitor.name}
+Mobile: ${visitor.mobile_no}`
                     }
                 })
 
@@ -904,6 +915,7 @@ Mobile: ${visitor.mobile_no}`
                     id: true,
                     scheduledDate: true,
                     actualDate: true,
+                    issueId: true,
                     workingDepartment: true,
                     siteVisitor: {
                         select: {
@@ -919,6 +931,7 @@ Mobile: ${visitor.mobile_no}`
                     }
                 }
             })
+            console.log(visits);
 
             if (visits) {
                 return {
@@ -939,6 +952,254 @@ Mobile: ${visitor.mobile_no}`
                 message: `Failed to fetch ${status} Visits`
             }
         }
+    }
+
+
+    static async completeScheduledSiteVisit(headId: string, siteVisitId: string) {
+        try {
+
+            const transaction = await prisma.$transaction(async (tx) => {
+
+                const oldSiteVisitEntry = await tx.issueSiteVisit.findUnique({
+                    where: {
+                        id: siteVisitId,
+                        status: 'SCHEDULED'
+                    }
+                })
+
+                if (!oldSiteVisitEntry) {
+                    throw new Error("Invalid Request!");
+                }
+
+
+
+
+                await tx.issueSiteVisit.update({
+                    where: {
+                        id: siteVisitId
+                    },
+                    data: {
+                        status: 'COMPLETED',
+                        actualDate: new Date()
+                    }
+                })
+
+
+                const currentDate = new Date();
+                const formattedDate = currentDate.toLocaleDateString("en-GB", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric"
+                });
+
+                const newTimeLineEntry = await tx.issueTimeLine.create({
+                    data: {
+                        action: 'SITE_VISIT_COMPLETED',
+                        performedBy: headId,
+                        issueId: oldSiteVisitEntry.issueId,
+                        visibleToCustomer: true,
+                        comment: `Site visit Completed on ${new Date()}.`
+                    }
+                })
+
+                await tx.issue.update({
+                    where: {
+                        id: oldSiteVisitEntry.issueId
+                    },
+                    data: {
+                        latestStatusId: newTimeLineEntry.id
+                    }
+                })
+                return true
+            })
+
+            return {
+                status: true,
+                data: null,
+                message: 'Visit Completed Successfully'
+            }
+
+        } catch (error) {
+            return {
+                status: true,
+                data: null,
+                message: 'Failed To Complete Visit'
+            }
+        }
+    }
+
+
+    static async cancelScheduledSiteVisit(headId: string, siteVisitId: string, remark?: string) {
+        try {
+
+            const transaction = await prisma.$transaction(async (tx) => {
+
+                const oldSiteVisitEntry = await tx.issueSiteVisit.findUnique({
+                    where: {
+                        id: siteVisitId,
+                        status: 'SCHEDULED'
+                    }
+                })
+
+                if (!oldSiteVisitEntry) {
+                    throw new Error("Invalid Request!");
+                }
+
+
+
+
+                await tx.issueSiteVisit.update({
+                    where: {
+                        id: siteVisitId
+                    },
+                    data: {
+                        status: 'CANCELLED',
+                        actualDate: new Date()
+                    }
+                })
+
+                const newTimeLineEntry = await tx.issueTimeLine.create({
+                    data: {
+                        action: 'SITE_VISIT_CANCELLED',
+                        performedBy: headId,
+                        issueId: oldSiteVisitEntry.issueId,
+                        visibleToCustomer: true,
+                        comment: `Site visit has been cancelled.\nRemark: ${remark || 'No additional remarks provided.'}`
+
+                    }
+                })
+
+                await tx.issue.update({
+                    where: {
+                        id: oldSiteVisitEntry.issueId
+                    },
+                    data: {
+                        latestStatusId: newTimeLineEntry.id
+                    }
+                })
+                return true
+            })
+
+            return {
+                status: true,
+                data: null,
+                message: 'Site visit cancelled successfully'
+            }
+
+        } catch (error) {
+            return {
+                status: true,
+                data: null,
+                message: 'Failed to cancel site visit'
+            }
+        }
+    }
+
+
+    static async markResolveIssue(headId: string, issueId: string, remark?: string) {
+        return prisma.$transaction(async (tx) => {
+            // 1. Validate issue belongs to head and is not already closed
+            const issueEntry = await tx.issue.findFirst({
+                where: {
+                    id: issueId,
+                    internalStatus: { not: "CLOSED" }, // prevent re-closing
+                    assignedDepartments: {
+                        some: { employeeId: headId },
+                    },
+                }
+            });
+
+            if (!issueEntry) {
+                throw new Error("Invalid Request");
+            }
+
+            // 2. Find pending site visit OR requests in parallel
+            const [siteVisitEntry, siteVisitRequest] = await Promise.all([
+                tx.issueSiteVisit.findFirst({
+                    where: { issueId, status: "SCHEDULED" },
+                }),
+                tx.siteVisitRequest.findFirst({
+                    where: { issueId, status: "PENDING" },
+                }),
+            ]);
+
+
+
+            // 3. Prepare bulk timeline entries
+            const timelineEntries: any[] = [];
+
+            if (siteVisitEntry) {
+                await tx.issueSiteVisit.update({
+                    where: { id: siteVisitEntry.id },
+                    data: { status: "CANCELLED" },
+                });
+                timelineEntries.push({
+                    action: "SITE_VISIT_CANCELLED",
+                    comment: "Scheduled Site Visit cancelled due to issue resolution.",
+                    performedBy: headId,
+                    issueId,
+                    visibleToCustomer: true,
+                });
+            }
+
+            if (siteVisitRequest) {
+                await tx.siteVisitRequest.update({
+                    where: { id: siteVisitRequest.id },
+                    data: { status: "CANCELLED" },
+                });
+                timelineEntries.push({
+                    action: "SITE_VISIT_REQUEST_CANCELLED",
+                    comment: "Site Visit Request cancelled due to issue resolution.",
+                    performedBy: headId,
+                    issueId,
+                    visibleToCustomer: false,
+                });
+            }
+            // Always add RESOLVED timeline
+            timelineEntries.push({
+                action: "RESOLVED",
+                comment: `Issue has been successfully resolved.${remark && remark.trim() !== "" ? `\nRemark: ${remark.trim()}` : ""}`,
+                performedBy: headId,
+                issueId,
+                visibleToCustomer: true,
+            });
+
+
+            // 4. Create all timeline entries at once
+            const createdTimelines = await tx.issueTimeLine.createManyAndReturn?.({
+                data: timelineEntries,
+            }) ?? await Promise.all(
+                timelineEntries.map((entry) => tx.issueTimeLine.create({ data: entry }))
+            );
+
+            // 5. Update issue with latest timeline entry
+            const latestTimeline = createdTimelines[createdTimelines.length - 1];
+            if (!latestTimeline) {
+                throw new Error("Failed to create timeline entry while resolving issue");
+            }
+            await tx.issue.update({
+                where: { id: issueId },
+                data: {
+                    internalStatus: "CLOSED",
+                    customerStatus: "CLOSED",
+                    latestStatusId: latestTimeline.id,
+                    resolvedAt: new Date(),
+                },
+            });
+
+            await tx.issueAssignedDepartment.updateMany({
+                where: {
+                    issueId: issueId,
+                    employeeId: headId,
+                    isActive: true
+                },
+                data: {
+                    isActive: false
+                }
+            })
+
+            return { status: true, message: "Issue resolved successfully" };
+        });
     }
 
 }
