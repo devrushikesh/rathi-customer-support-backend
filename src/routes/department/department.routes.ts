@@ -1,4 +1,4 @@
-import express, { type Request, type Response } from "express";
+import express, { response, type Request, type Response } from "express";
 import DepartmentService from "../../services/department.service.js";
 import { VisitStatus } from "@prisma/client";
 
@@ -495,6 +495,245 @@ DepartmentRoutes.post("/mark-issue-resolved", async (req: Request, res: Response
     });
   }
 });
+
+DepartmentRoutes.post("/add-site-engineer", async (req: Request, res: Response) => {
+  const { mobile_no, email, name, location } = req.body;
+
+  if (req.user.department != 'SERVICE') {
+    return res.status(400).json({
+      status: false,
+      message: "Permission Denied"
+    });
+  }
+
+  // --- Validation ---
+  // Name at least 3 chars
+  if (!name || name.trim().length < 3) {
+    return res.status(400).json({
+      status: false,
+      message: "Name must be at least 3 characters long"
+    });
+  }
+
+  // Location at least 3 chars
+  if (!location || location.trim().length < 3) {
+    return res.status(400).json({
+      status: false,
+      message: "Location must be at least 3 characters long"
+    });
+  }
+
+  // Indian mobile number: starts with 6-9 and total 10 digits
+  const indianMobileRegex = /^[6-9]\d{9}$/;
+  if (!mobile_no || !indianMobileRegex.test(mobile_no)) {
+    return res.status(400).json({
+      status: false,
+      message: "Invalid Indian mobile number"
+    });
+  }
+
+  // Email is optional, but if provided it must be valid
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return res.status(400).json({
+      status: false,
+      message: "Invalid email format"
+    });
+  }
+  // --- End validation ---
+
+  try {
+    const response = await DepartmentService.addServiceEngineer(
+      name.trim(),
+      mobile_no.trim(),
+      email.trim(),
+      location.trim()
+    );
+    return res.json({
+      status: true,
+      data: response,
+      message: "Successfully created the Member"
+    });
+  } catch (error) {
+    console.log(error);
+
+    return res.status(500).json({
+      status: false,
+      data: null,
+      message: "Something went wrong"
+    });
+  }
+});
+
+
+DepartmentRoutes.get("/get-service-head-team-stat", async (req: Request, res: Response) => {
+  try {
+    if (req.user.department != 'SERVICE') {
+      return res.status(400).json({
+        status: false,
+        data: null,
+        message: "Permission denied"
+      })
+    }
+
+    const result = await DepartmentService.getTeamPageStats();
+
+    return res.json({
+      status: true,
+      data: result,
+      message: "Successfully Fetched the stats of team page"
+    });
+  } catch (error) {
+    return res.status(500).json({
+      status: false,
+      data: null,
+      message: "Failed to Fetched the stats of team page"
+    })
+  }
+})
+
+DepartmentRoutes.get("/get-upcoming-site-visit-schedules/:visitorId", async (req: Request, res: Response) => {
+  const siteEngId = req.params.visitorId;
+  if (!siteEngId || siteEngId == undefined || req.user.department != 'SERVICE') {
+    return res.status(400).json({
+      status: false,
+      data: null,
+      message: "Invalid request"
+    })
+  }
+  try {
+    const result = await DepartmentService.getUpcomingSiteVisitSchedules(siteEngId);
+    return res.json({
+      status: true,
+      data: result,
+      message: "Successfully fetched upcoming schedules"
+    })
+  } catch (error) {
+    return res.status(500).json({
+      status: false,
+      data: null,
+      message: "Failed to fetch upcoming schedules"
+    })
+  }
+})
+
+
+DepartmentRoutes.post("/update-site-engineer-profile", async (req: Request, res: Response) => {
+  const { id, name, email, mobile_no, location, isActive } = req.body;
+
+  if (req.user.department != 'SERVICE') {
+    return res.status(400).json({
+      status: false,
+      message: "Permission Denied"
+    });
+  }
+
+  // --- Validation ---
+  if (!id) {
+    return res.status(400).json({
+      status: false,
+      message: "Invalid Request"
+    });
+  }
+
+  // Name at least 3 chars
+  if (name && name.trim().length < 3) {
+    return res.status(400).json({
+      status: false,
+      message: "Name must be at least 3 characters long"
+    });
+  }
+
+  // Location at least 3 chars
+  if (location && location.trim().length < 3) {
+    return res.status(400).json({
+      status: false,
+      message: "Location must be at least 3 characters long"
+    });
+  }
+
+  // Indian mobile number: starts with 6-9 and total 10 digits
+  const indianMobileRegex = /^[6-9]\d{9}$/;
+  if (mobile_no && !indianMobileRegex.test(mobile_no)) {
+    return res.status(400).json({
+      status: false,
+      message: "Invalid Indian mobile number"
+    });
+  }
+
+  // Email is optional, but if provided it must be valid
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (email && !emailRegex.test(email)) {
+    return res.status(400).json({
+      status: false,
+      message: "Invalid email format"
+    });
+  }
+  // --- End validation ---
+
+  try {
+    const response = await DepartmentService.updateServiceEngineer(
+      id,
+      name?.trim(),
+      mobile_no?.trim(),
+      email?.trim(),
+      location?.trim(),
+      isActive
+    );
+    return res.json({
+      status: true,
+      data: response,
+      message: "Successfully updated the Member"
+    });
+  } catch (error) {
+    console.log(error);
+
+    return res.status(500).json({
+      status: false,
+      data: null,
+      message: "Something went wrong"
+    });
+  }
+});
+
+
+DepartmentRoutes.post("/request-attachment-for-issue", async (req: Request, res: Response) => {
+  const { issueId, remark } = req.body;
+  if (!issueId || !remark) {
+    return res.status(400).json({
+      status: false,
+      data: null,
+      message: "Invalid Request"
+    })
+  }
+  try {
+    const result = await DepartmentService.requestAttachmentForIssue(req.user.id, issueId, remark);
+    console.log(result);
+    return res.json(result);
+  } catch (error) {
+    console.log(error);
+
+    return res.status(400).json({
+      status: false,
+      data: null,
+      message: "Something wrong"
+    })
+  }
+})
+
+
+DepartmentRoutes.get("/get-home-page-stats", async (req: Request, res: Response) => {
+  try {
+    const result = await DepartmentService.getHomePageStats(req.user.id);
+    return res.json(result);
+  } catch (error) {
+    return res.status(500).json({
+      status: false,
+      data: null,
+      message: "Something went wrong"
+    })
+  }
+})
 
 
 export default DepartmentRoutes;

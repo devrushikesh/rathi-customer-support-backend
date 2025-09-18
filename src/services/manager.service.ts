@@ -3,6 +3,206 @@ import prisma from "../prisma/client.js";
 
 class ManagerServices {
 
+    static async getProjectDetailById(projectId: number) {
+        try {
+            const project = await prisma.projects.findUnique({
+                where: {
+                    id: projectId
+                }
+            });
+
+            if (!project) {
+                return {
+                    status: false,
+                    data: null,
+                    message: "Project not found"
+                };
+            }
+
+            return {
+                status: true,
+                data: project,
+                message: "Project details fetched successfully"
+            };
+        } catch (error) {
+            return {
+                status: false,
+                data: null,
+                message: "Failed to fetch project details"
+            };
+        }
+    }
+
+
+    static async getCustomerDetailsById(customerId: number) {
+
+        try {
+            const customer = await prisma.customer.findUnique({
+                where: {
+                    id: customerId
+                }
+            });
+
+            const projects = await prisma.projects.findMany({
+                where: {
+                    customerId: customerId
+                },
+                select: {
+                    id: true,
+                    projectName: true,
+                    createdAt: true
+                }
+            });
+
+
+
+            if (!customer) {
+                return {
+                    status: false,
+                    data: null,
+                    message: "Customer not found"
+                };
+            }
+
+            return {
+                status: true,
+                data: { customer, projects },
+                message: "Customer details fetched successfully"
+            };
+        } catch (error) {
+            return {
+                status: false,
+                data: null,
+                message: "Failed to fetch customer details"
+            };
+        }
+    }
+
+
+    static async createProject(projectName: string, customerId: number, machineType: string, capacity: string, location: string, application: string, feedSize: string, finalProductSize: string) {
+        try {
+            const customer = await prisma.customer.findUnique({
+                where: {
+                    id: customerId
+                }
+            });
+
+            if (!customer) {
+                return {
+                    status: false,
+                    data: null,
+                    message: "Customer not found"
+                };
+            }
+
+            const newProject = await prisma.projects.create({
+                data: {
+                    projectName,
+                    customerId,
+                    machineType,
+                    capacity,
+                    location,
+                    application,
+                    feedSize,
+                    finalProductSize
+                }
+            });
+            return {
+                status: true,
+                data: newProject,
+                message: "Project created successfully"
+            };
+        } catch (error) {
+            return {
+                status: false,
+                data: null,
+                message: "Failed to create project"
+            };
+        }
+    }
+
+    static async createCustomer(name: string, mobile_no: string, email: string) {
+        try {
+            const existingCustomer = await prisma.customer.findFirst({
+                where: { mobile_no: mobile_no },
+            });
+            if (existingCustomer) {
+                return {
+                    status: false,
+                    data: null,
+                    message: "Customer with this mobile number already exists",
+                };
+            }
+
+            const newCustomer = await prisma.customer.create({
+                data: {
+                    name,
+                    mobile_no,
+                    email
+                },
+            });
+
+            return {
+                status: true,
+                data: newCustomer,
+                message: "Customer created successfully",
+            };
+        } catch (error) {
+            return {
+                status: false,
+                data: null,
+                message: "Failed to create customer",
+            };
+        }
+    }
+
+
+    static async getManageStats() {
+        const totalCustomers = await prisma.customer.count();
+        const totalProjects = await prisma.projects.count();
+        return {
+            status: true,
+            data: {
+                totalCustomers,
+                totalProjects
+            },
+            message: "Stats fetched successfully"
+        }
+    }
+
+    static async getCustomerList() {
+        const customers = await prisma.customer.findMany({
+            select: {
+                id: true,
+                name: true
+            }
+        });
+
+        return {
+            status: true,
+            data: customers,
+            message: "Customer List fetched successfully"
+        }
+    }
+
+    static async getAllProjectList() {
+        const projects = await prisma.projects.findMany({
+            select: {
+                id: true,
+                projectName: true,
+                customerId: true,
+                createdAt: true
+            }
+        });
+
+        return {
+            status: true,
+            data: projects,
+            message: "Project List fetched successfully"
+        }
+    }
+
+
     static async getNewIssues() {
         try {
             const issues = await prisma.issue.findMany({
@@ -300,6 +500,56 @@ class ManagerServices {
                 message: "Failed to fetch issue"
             };
         }
+    }
+
+
+    static async markInvalidIssue(employeeId: string, issueId: string, reason?: string) {
+        return prisma.$transaction(async (tx) => {
+            // 1. Validate issue belongs to head and is not already closed
+            const issueEntry = await tx.issue.findFirst({
+                where: {
+                    id: issueId,
+                    internalStatus: { not: "CLOSED" }
+                }
+            });
+
+            if (!issueEntry || issueEntry.internalStatus != "NEW") {
+                throw new Error("Invalid Request");
+            }
+
+            // 2. Prepare timeline entry for INVALID status
+
+            // 3. Create timeline entry
+            const createdTimeline = await tx.issueTimeLine.create({
+                data: {
+                    action: 'INVALID',
+                    comment: `Issue has been marked as invalid.${reason && reason.trim() !== "" ? `\nReason: ${reason.trim()}` : ""}`,
+                    performedBy: employeeId,
+                    issueId,
+                    visibleToCustomer: true,
+                }
+            });
+
+            if (!createdTimeline) {
+                throw new Error("Failed to create timeline entry while marking issue as invalid");
+            }
+
+            // 4. Update issue with latest timeline entry
+            await tx.issue.update({
+                where: { id: issueId },
+                data: {
+                    internalStatus: "CLOSED",
+                    customerStatus: "CLOSED",
+                    latestStatusId: createdTimeline.id,
+                    isSiteVisitRequested: false,
+                    isSiteVisitScheduled: false,
+                    isAttachmentsRequested: false,
+                    resolvedAt: new Date(),
+                },
+            });
+
+            return { status: true, message: "Issue marked as invalid successfully" };
+        });
     }
 
 }

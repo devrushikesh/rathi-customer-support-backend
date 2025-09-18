@@ -28,7 +28,7 @@ export const getIssuesByStatusController = async (req: Request, res: Response) =
 }
 
 export const createIssueController = async (req: Request, res: Response) => {
-    const { description, projectId } = req.body;
+    const { description, projectId, tempId } = req.body;
     console.log(req.body);
     console.log("issue creating");
 
@@ -44,7 +44,8 @@ export const createIssueController = async (req: Request, res: Response) => {
         const data = {
             description: description,
             projectId: projectId,
-            customerId: req.user.id
+            customerId: req.user.id,
+            tempId: tempId ?? null
         }
         const result = await CustomerServices.createIssue(data)
         res.send({

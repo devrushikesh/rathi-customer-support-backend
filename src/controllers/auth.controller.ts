@@ -1,9 +1,13 @@
 import type { Request, Response } from "express";
 import AuthService from "../services/auth.service.js";
+import { access } from "node:fs";
 
 
 export const getOtpAuthController = async (req: Request<{}, {}, { mobile_number: string }>, res: Response) => {
     const { mobile_number } = req.body;
+
+    console.log(mobile_number);
+    
 
     try {
         if (!mobile_number) {
@@ -55,7 +59,8 @@ export const verifyOtpAuthController = async (req: Request, res: Response) => {
             status: result.status,
             message: result.message,
             data: {
-                token: result.data?.token,
+                accessToken: result.data?.accessToken,
+                refreshToken: result.data?.refreshToken,
                 role: result.data?.role,
                 department: result.data?.department
             }
