@@ -669,6 +669,11 @@ Mobile: ${visitor.mobile_no}`
                     }
                 })
 
+                await tx.employee.update({
+                    where: { id: visitorId },
+                    data: { pendingVisits: { increment: 1 } }
+                })
+
 
 
                 await tx.siteVisitRequest.update({
@@ -770,6 +775,11 @@ Mobile: ${visitor.mobile_no}`
 Assigned Service Engineer: ${visitor.name}
 Mobile: ${visitor.mobile_no}`
                     }
+                })
+
+                await tx.employee.update({
+                    where: { id: visitorId },
+                    data: { pendingVisits: { increment: 1 } }
                 })
 
                 await tx.issue.update({
@@ -875,8 +885,11 @@ Mobile: ${visitor.mobile_no}`
                 select: {
                     id: true,
                     name: true,
+                    email: true,
                     mobile_no: true,
-                    isActive: true
+                    pendingVisits: true,
+                    completedVisits: true,
+                    location: true,
                 }
             });
 
@@ -972,6 +985,14 @@ Mobile: ${visitor.mobile_no}`
                 }
 
 
+                await tx.employee.update({
+                    where: { id: oldSiteVisitEntry.siteVisitorId },
+                    data: {
+                        pendingVisits: { decrement: 1 },
+                        completedVisits: { increment: 1 }
+                    }
+                })
+
 
 
                 await tx.issueSiteVisit.update({
@@ -998,7 +1019,7 @@ Mobile: ${visitor.mobile_no}`
                         performedBy: headId,
                         issueId: oldSiteVisitEntry.issueId,
                         visibleToCustomer: true,
-                        comment: `Site visit Completed on ${new Date()}.`
+                        comment: `Site visit Completed on ${formattedDate}.`
                     }
                 })
 
@@ -1007,7 +1028,9 @@ Mobile: ${visitor.mobile_no}`
                         id: oldSiteVisitEntry.issueId
                     },
                     data: {
-                        latestStatusId: newTimeLineEntry.id
+                        latestStatusId: newTimeLineEntry.id,
+                        isSiteVisitRequested: false,
+                        isSiteVisitScheduled: false
                     }
                 })
                 return true
@@ -1046,7 +1069,12 @@ Mobile: ${visitor.mobile_no}`
                 }
 
 
-
+                await tx.employee.update({
+                    where: { id: oldSiteVisitEntry.siteVisitorId },
+                    data: {
+                        pendingVisits: { decrement: 1 }
+                    }
+                })
 
                 await tx.issueSiteVisit.update({
                     where: {
@@ -1074,7 +1102,9 @@ Mobile: ${visitor.mobile_no}`
                         id: oldSiteVisitEntry.issueId
                     },
                     data: {
-                        latestStatusId: newTimeLineEntry.id
+                        latestStatusId: newTimeLineEntry.id,
+                        isSiteVisitRequested: false,
+                        isSiteVisitScheduled: false
                     }
                 })
                 return true
@@ -1133,6 +1163,14 @@ Mobile: ${visitor.mobile_no}`
                     where: { id: siteVisitEntry.id },
                     data: { status: "CANCELLED" },
                 });
+
+                await tx.employee.update({
+                    where: { id: siteVisitEntry.id },
+                    data: {
+                        pendingVisits: { decrement: 1 }
+                    }
+                })
+
                 timelineEntries.push({
                     action: "SITE_VISIT_CANCELLED",
                     comment: "Scheduled Site Visit cancelled due to issue resolution.",
@@ -1183,6 +1221,9 @@ Mobile: ${visitor.mobile_no}`
                     internalStatus: "CLOSED",
                     customerStatus: "CLOSED",
                     latestStatusId: latestTimeline.id,
+                    isSiteVisitRequested: false,
+                    isSiteVisitScheduled: false,
+                    isAttachmentsRequested: false,
                     resolvedAt: new Date(),
                 },
             });
@@ -1201,6 +1242,216 @@ Mobile: ${visitor.mobile_no}`
             return { status: true, message: "Issue resolved successfully" };
         });
     }
+
+    static async addServiceEngineer(
+        name: string,
+        mobile_no: string,
+        email: string,
+        location: string
+    ) {
+
+        const new_employee = await prisma.employee.create({
+            data: {
+                role: "SERVICE_ENGINEER",
+                name: name.trim(),
+                email: email.trim(),
+                mobile_no: mobile_no.trim(),
+                department: "SERVICE",
+                location: location.trim(),
+                pendingVisits: 0,
+                completedVisits: 0,
+            },
+        });
+
+        return new_employee;
+    }
+
+    static async getTeamPageStats() {
+        const employeeCount = await prisma.employee.count({
+            where: {
+                role: 'SERVICE_ENGINEER',
+                isActive: true
+            }
+        })
+
+        const scheduledVisitCount = await prisma.issueSiteVisit.count({
+            where: {
+                status: 'SCHEDULED'
+            }
+        })
+
+        const visitRequestCount = await prisma.siteVisitRequest.count({
+            where: {
+                status: 'PENDING'
+            }
+        })
+
+
+        return {
+            employeeCount: employeeCount,
+            scheduledVisitCount: scheduledVisitCount,
+            visitRequestCount: visitRequestCount
+        }
+    }
+
+    static async getUpcomingSiteVisitSchedules(siteEngId: string) {
+        const upcomingSchedules = await prisma.issueSiteVisit.findMany({
+            where: {
+                siteVisitorId: siteEngId,
+                status: 'SCHEDULED'
+            },
+            select: {
+                scheduledDate: true,
+                issue: {
+                    select: {
+                        ticketNo: true,
+                    }
+                },
+                workingDepartment: true
+            }
+        })
+        return upcomingSchedules
+    }
+
+    static async updateServiceEngineer(siteEngId: string, name?: string, mobile_no?: string, email?: string, location?: string, isActive?: boolean) {
+        const updatedData: any = {};
+        if (name) updatedData.name = name;
+        if (mobile_no) updatedData.mobile_no = mobile_no;
+        if (email) updatedData.email = email;
+        if (location) updatedData.location = location;
+        if (isActive !== undefined) updatedData.isActive = isActive;
+
+        const updatedEngineer = await prisma.employee.update({
+            where: { id: siteEngId },
+            data: updatedData,
+        });
+
+        return updatedEngineer;
+    }
+
+
+    static async requestAttachmentForIssue(employeeId: string, issueId: string, comment: string) {
+        const result = await prisma.$transaction(async (tx) => {
+            // Verify employee is assigned to this issue
+            const assignment = await tx.issueAssignedDepartment.findFirst({
+                where: {
+                    issueId,
+                    employeeId,
+                    isActive: true,
+                    employee: { isActive: true },
+                    issue: { isAttachmentsRequested: false }
+                },
+                include: {
+                    employee: {
+                        select: { id: true, name: true, department: true }
+                    }
+                }
+            });
+
+            if (!assignment) {
+                throw new Error("Employee is not assigned to this issue");
+            }
+
+            // Create a new issue timeline entry
+            const latestIssueTimeLineEntry = await tx.issueTimeLine.create({
+                data: {
+                    issueId,
+                    action: "ATTACHMENT_REQUESTED",
+                    comment: `Attachments have been requested for this issue.\n Remark: ${comment}`,
+                    visibleToCustomer: true,
+                    performedBy: employeeId,
+                }
+            });
+
+            // Update the issue with the latest status
+            await tx.issue.update({
+                where: {
+                    id: issueId
+                },
+                data: {
+                    isAttachmentsRequested: true,
+                    latestStatusId: latestIssueTimeLineEntry.id
+                }
+            });
+
+            return {
+                status: true,
+                data: null,
+                message: "Attachment request added successfully"
+            };
+        })
+        return result;
+    }
+
+    static async getHomePageStats(employeeId: string) {
+
+        const totalIssuesCount = await prisma.issue.count({
+            where: {
+                assignedDepartments: {
+                    some: {
+                        employeeId: employeeId
+                    }
+                }
+            }
+        })
+
+        const openIssuesCount = await prisma.issue.count({
+            where: {
+                internalStatus: 'OPEN',
+                assignedDepartments: {
+                    some: {
+                        employeeId: employeeId
+                    }
+                }
+            }
+        })
+
+        const closedIssuesCount = await prisma.issue.count({
+            where: {
+                internalStatus: 'CLOSED',
+                assignedDepartments: {
+                    some: {
+                        employeeId: employeeId
+                    }
+                }
+            }
+        })
+
+        const inProgressIssuesCount = await prisma.issue.count({
+            where: {
+                internalStatus: {
+                    notIn: ['CLOSED', 'OPEN']
+                },
+                assignedDepartments: {
+                    some: {
+                        employeeId: employeeId
+                    }
+                }
+            }
+        });
+
+        const userName = await prisma.employee.findUnique({
+            where: {
+                id: employeeId
+            },
+            select: {
+                name: true
+            }
+        })
+
+        return {
+            status: true,
+            message: "feched stats successfully",
+            data: {
+                userName,
+                totalIssuesCount,
+                openIssuesCount,
+                closedIssuesCount,
+                inProgressIssuesCount
+            }
+        }
+    }
+
 
 }
 

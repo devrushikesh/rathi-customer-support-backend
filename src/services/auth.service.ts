@@ -1,9 +1,52 @@
-import { Department } from "@prisma/client";
+
 import prisma from "../prisma/client.js";
-import { generate_jwt_token, type JwtPayload } from "../utils/jwt.js";
+import { generate_jwt_token, verify_jwt_token, type JwtPayload } from "../utils/jwt.js";
 import otpCache from "./store.service.js";
 
 class AuthService {
+
+
+    static async getNewAccessToken(refreshToken: string): Promise<{ status: boolean, message: string, accessToken: { token: string; expiresAt: number } | null }> {
+        try {
+            console.log("Refresh Token:", refreshToken);
+            
+            const verified = verify_jwt_token<string | number>(refreshToken, "refresh");
+            if (!verified) {
+                return {
+                    status: false,
+                    message: "Invalid or expired token",
+                    accessToken: null
+                }
+            }
+
+            const payload: JwtPayload<string | number> = {
+                id: verified.id,
+                role: verified.role,
+                department: verified.department
+            }
+            const accessToken = generate_jwt_token(payload, "access");
+            if (!accessToken) {
+                return {
+                    status: false,
+                    message: "Something wrong!",
+                    accessToken: null
+                }
+            }
+
+            return {
+                status: true,
+                message: "Successfully generated new access token",
+                accessToken: accessToken
+            }
+
+        } catch (error) {
+            return {
+                status: false,
+                message: "Internal Server Error!",
+                accessToken: null
+            }
+        }
+    }
 
     static async check_user_exist(mobile_number: string) {
         try {
@@ -128,9 +171,10 @@ class AuthService {
                 role: data.role,
                 department: department
             }
-            const token = generate_jwt_token(payload);
+            const accessToken = generate_jwt_token(payload, "access");
+            const refreshToken = generate_jwt_token(payload, "refresh");
 
-            if (!token) {
+            if (!accessToken || !refreshToken) {
                 return {
                     status: false,
                     message: "Something wrong!",
@@ -142,7 +186,8 @@ class AuthService {
                 status: true,
                 message: "Successfully Otp Verified!",
                 data: {
-                    token: token,
+                    accessToken: accessToken,
+                    refreshToken: refreshToken,
                     role: data.role,
                     department: department
                 }

@@ -90,7 +90,7 @@ ManagerRoutes.post("/assign-issue-to-department", async (req: Request, res: Resp
 
 
 
-ManagerRoutes.get("/get-project-detail-by-id/:issueId", async (req: Request, res: Response) => {
+ManagerRoutes.get("/get-issue-detail-by-id/:issueId", async (req: Request, res: Response) => {
     const issueId = req.params.issueId;
     if (!issueId) {
         return res.status(400).json({
@@ -118,6 +118,202 @@ ManagerRoutes.get("/get-project-detail-by-id/:issueId", async (req: Request, res
     }
 })
 
+ManagerRoutes.post("/mark-issue-invalid", async (req: Request, res: Response) => {
+    const { issueId, reason } = req.body;
+    console.log(issueId, reason);
+
+    if (!issueId || !reason) {
+        return res.status(400).json({
+            status: false,
+            data: null,
+            message: "Invalid Request"
+        })
+    }
+    try {
+        const result = await ManagerServices.markInvalidIssue(req.user.id, issueId, reason);
+        console.log(result);
+
+        return res.json(result);
+    } catch (error) {
+        console.log(error);
+
+        return res.status(400).json({
+            status: false,
+            data: null,
+            message: "Something wrong"
+        })
+    }
+})
+
+
+ManagerRoutes.get("/get-customers-list", async (req: Request, res: Response) => {
+    try {
+        const result = await ManagerServices.getCustomerList();
+        return res.json(result);
+    } catch (error) {
+        return res.status(500).json({
+            status: false,
+            data: null,
+            message: "Something went wrong"
+        })
+    }
+});
+
+
+ManagerRoutes.get("/get-all-projects-list", async (req: Request, res: Response) => {
+    try {
+        const result = await ManagerServices.getAllProjectList();
+        return res.json(result);
+    } catch (error) {
+        return res.status(500).json({
+            status: false,
+            data: null,
+            message: "Something went wrong"
+        })
+    }
+});
+
+
+ManagerRoutes.get("/get-manage-page-stats", async (req: Request, res: Response) => {
+    try {
+        const result = await ManagerServices.getManageStats();
+        return res.json(result);
+    } catch (error) {
+        return res.status(500).json({
+            status: false,
+            data: null,
+            message: "Something went wrong"
+        })
+    }
+});
+
+
+ManagerRoutes.post("/create-customer", async (req: Request, res: Response) => {
+    const { name, mobile_no, email } = req.body;
+
+    if (!name || !mobile_no || !email || !/^\S+@\S+\.\S+$/.test(email) || !/^\d{10}$/.test(mobile_no)) {
+        return res.status(400).json({
+            status: false,
+            data: null,
+            message: "Invalid Request"
+        })
+    }
+    try {
+        const result = await ManagerServices.createCustomer(name, mobile_no, email);
+        if (result.status) {
+            return res.json(result);
+        } else {
+            return res.status(400).json(result);
+        }
+    } catch (error) {
+        return res.status(500).json({
+            status: false,
+            data: null,
+            message: "Something went wrong"
+        })
+    }
+});
+
+
+ManagerRoutes.post("/create-project", async (req: Request, res: Response) => {
+    const { projectName, customerId, machineType, capacity, location, application, feedSize, finalProductSize } = req.body;
+
+    if (!projectName || !customerId || !machineType || !capacity || !location || !application || !feedSize || !finalProductSize) {
+        return res.status(400).json({
+            status: false,
+            data: null,
+            message: "Invalid Request"
+        })
+    }
+    try {
+        const result = await ManagerServices.createProject(projectName, customerId, machineType, capacity, location, application, feedSize, finalProductSize);
+        if (result.status) {
+            return res.json(result);
+        } else {
+            return res.status(400).json(result);
+        }
+    } catch (error) {
+        return res.status(500).json({
+            status: false,
+            data: null,
+            message: "Something went wrong"
+        })
+    }
+});
+
+
+ManagerRoutes.get(
+    "/get-customer-details-by-id/:customerId",
+    async (req: Request, res: Response) => {
+        const { customerId } = req.params;
+
+        console.log(customerId);
+        
+
+        // Validate: must be a number and a finite integer
+        const numericId = Number(customerId);
+        if (!Number.isInteger(numericId) || numericId <= 0) {
+            console.log("Invalid customerId:", customerId);
+            
+            return res.status(400).json({
+                status: false,
+                data: null,
+                message: "Invalid Request: customerId must be a positive integer",
+            });
+        }
+
+        try {
+            // Pass the numeric value to the service layer
+            const result = await ManagerServices.getCustomerDetailsById(numericId);
+            console.log(result);
+            
+
+            if (result.status) {
+                return res.json(result);
+            } else {
+                return res.status(400).json(result);
+            }
+        } catch (error) {
+            console.error(error);
+            return res.status(500).json({
+                status: false,
+                data: null,
+                message: "Something went wrong",
+            });
+        }
+    }
+);
+
+ManagerRoutes.get("/get-project-detail-by-id/:projectId", async (req: Request, res: Response) => {
+    const projectId = req.params.projectId;
+    if (!projectId) {
+        return res.status(400).json({
+            status: false,
+            data: null,
+            message: "Bad Request"
+        })
+    }
+    try {
+
+        const numericId = Number(projectId);
+
+        const result = await ManagerServices.getProjectDetailById(numericId);
+        if (result.status) {
+            return res.json(result);
+        }
+        return res.status(400).json({
+            status: false,
+            data: null,
+            message: "Failed to fetch project"
+        });
+    } catch (error) {
+        return res.status(500).json({
+            status: false,
+            data: null,
+            message: "Failed to fetch project"
+        });
+    }
+});
 
 
 export default ManagerRoutes;

@@ -10,6 +10,7 @@ class AuthMiddleware {
      */
     static AuthenticateUser(req: Request, res: Response, next: NextFunction) {
         try {
+            
             // Express headers are lower-cased. Support both Authorization and custom header.
             const authHeader = (req.headers.authorization as string | undefined) ?? undefined;
 
@@ -26,10 +27,11 @@ class AuthMiddleware {
             }
 
             // verify_jwt_token should return JwtPayload<string|number> | null
-            const verified = verify_jwt_token<string | number>(token);
+            const verified = verify_jwt_token<string | number>(token, "access");
             if (!verified) {
                 return res.status(401).json({ error: "Invalid or expired token" });
             }
+
 
             // attach to req.user (your global express type must allow this)
             req.user = {

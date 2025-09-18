@@ -1,12 +1,8 @@
-import type {
-  Category,
-  Priority,
-  CustomerStatus,
-  Issue,
-  IssueTimeLine,
-  Customer
-} from "@prisma/client";
+
 import prisma from "../prisma/client.js";
+import { generateMultiplePresignedPostUrls, moveFolder } from "./s3.service.js";
+
+import { randomUUID } from "crypto";
 
 // Types for better type safety
 interface CreateIssueData {
@@ -14,19 +10,186 @@ interface CreateIssueData {
   projectId: number;
   customerId: number;
   attachmentUrls?: string[];
+  tempId?: string
 }
 
-interface IssueWithCustomer extends Issue {
-  customer: Customer;
-}
 
-interface IssueWithTimeline extends Issue {
-  timeline: IssueTimeLine[];
+interface FileItem {
+  fileName: string;
+  contentType: string;
 }
 
 class CustomerServices {
 
+  static async confirmOnRequestAttachmentsUploaded(issueId: string, tempId: string) {
+    try {
+      // 1️⃣ Check if issue exists and is expecting attachments
+      const issue = await prisma.issue.findUnique({
+        where: { id: issueId },
+        select: { ticketNo: true, isAttachmentsRequested: true },
+      });
+
+      if (!issue) {
+        return { status: false, data: null, message: "Issue not found" };
+      }
+
+      if (!issue.isAttachmentsRequested) {
+        return {
+          status: false,
+          data: null,
+          message: "Attachments not requested for this issue",
+        };
+      }
+
+      // 2️⃣ Move files first (external S3 action – do outside transaction)
+      const movedFiles = await moveFolder(
+        "rathi-engineering-issues",
+        `temp/${tempId}/`,
+        `issues/${issue.ticketNo}/`
+      );
+
+      if (!movedFiles || movedFiles.length === 0) {
+        return {
+          status: false,
+          data: null,
+          message: "No files were moved. Please check the tempId and try again.",
+        };
+      }
+
+      // 3️⃣ Create timeline + update issue atomically
+      const result = await prisma.$transaction(async (tx) => {
+        // create timeline entry
+        const timeline = await tx.issueTimeLine.create({
+          data: {
+            issueId,
+            action: "ATTACHMENT_ADDED",
+            toCustomerStatus: null,
+            toInternalStatus: null,
+            visibleToCustomer: true,
+            comment: `Customer has uploaded ${movedFiles.length} attachment(s).`,
+          },
+        });
+
+        // update issue
+        const updatedIssue = await tx.issue.update({
+          where: { id: issueId },
+          data: {
+            attachmentUrls: { push: movedFiles },
+            isAttachmentsRequested: false,
+            latestStatusId: timeline.id,
+          },
+        });
+
+        return { timeline, updatedIssue };
+      });
+
+      return {
+        status: true,
+        data: movedFiles,
+        message: "Attachments uploaded and issue updated successfully",
+      };
+    } catch (error) {
+      console.error("confirmOnRequestAttachmentsUploaded error:", error);
+      return {
+        status: false,
+        data: null,
+        message: "Unable to confirm attachments upload",
+      };
+    }
+  }
+
+
+
+  static async getPresignedPutUrlsBehalfOfRequest(files: Array<FileItem>, issueId: string, userId: number) {
+    try {
+      const issue = await prisma.issue.findUnique({
+        where: { id: issueId, customerId: userId },
+        select: { ticketNo: true, isAttachmentsRequested: true }
+      });
+
+      if (!issue) {
+        return {
+          status: false,
+          data: null,
+          message: "Issue not found"
+        };
+      }
+
+      if (!issue.isAttachmentsRequested) {
+        return {
+          status: false,
+          data: null,
+          message: "Attachments not requested for this issue"
+        };
+      }
+
+      if (files.length === 0) {
+        return {
+          status: false,
+          data: null,
+          message: "No files provided"
+        };
+      }
+
+      if (files.length > 5) {
+        return {
+          status: false,
+          data: null,
+          message: "Too many files provided"
+        };
+      }
+
+      const tempId = randomUUID();
+      const presignedUrls = await generateMultiplePresignedPostUrls(
+        files,
+        tempId
+      );
+
+      return {
+        status: true,
+        data: {
+          presignedUrls,
+          tempId
+        },
+        message: "successfully created presigned urls"
+      };
+
+    } catch {
+      return {
+        status: false,
+        data: null,
+        message: "unable to create presigned urls"
+      };
+    }
+  }
+
+  static async getPresignedPurUrls(files: Array<FileItem>) {
+    try {
+      const tempId = randomUUID();
+      const presignedUrls = await generateMultiplePresignedPostUrls(files, tempId);
+
+      return {
+        status: true,
+        data: {
+          presignedUrls,
+          tempId
+        },
+        message: "successfully created presigned urls"
+      }
+
+    } catch {
+      return {
+        status: false,
+        data: null,
+        message: "unable to create presigned urls"
+      };
+    }
+  }
+
+
   static async createIssue(data: CreateIssueData) {
+    console.log(data);
+
     try {
       const year = new Date().getFullYear();
 
@@ -52,7 +215,7 @@ class CustomerServices {
 
         // 3. Generate next ticket number
         const nextNumber = count + 1;
-        const ticketNo = `ISSUE-${year}-${String(nextNumber).padStart(3, '0')}`;
+        const ticketNo = `${year}-${String(nextNumber).padStart(3, '0')}`;
 
         const project = await prisma.projects.findFirst({
           where: {
@@ -67,6 +230,12 @@ class CustomerServices {
           throw new Error("Project not exist");
         }
 
+        const movedFiles = await moveFolder(
+          "rathi-engineering-issues",
+          `temp/${data.tempId}/`,
+          `issues/${ticketNo}/`
+        );
+
         // 4. Create the issue
         const newIssue = await tnx.issue.create({
           data: {
@@ -74,7 +243,7 @@ class CustomerServices {
             projectId: data.projectId,
             customerId: data.customerId,
             ticketNo: ticketNo,
-            attachmentUrls: data.attachmentUrls || []
+            attachmentUrls: movedFiles || []
           }
         });
 

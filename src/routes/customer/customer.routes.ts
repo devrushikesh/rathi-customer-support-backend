@@ -72,4 +72,151 @@ CustomerRoutes.get("/get-issue-detail-by-id/:issueId", async (req: Request, res:
     }
 })
 
+CustomerRoutes.post("/get-presigned-put-urls", async (req: Request, res: Response) => {
+    const { files } = req.body;
+
+    console.log(files);
+    
+    // Check if files exists and is an array
+    if (files == undefined || !files || !Array.isArray(files)) {
+
+        return res.status(400).json({
+            status: false,
+            data: null,
+            message: "Invalid request: 'files' should be an array of objects."
+        });
+    }
+
+    // Validate each file object
+    const invalidFile = files.find(
+        (f: any) =>
+            !f.fileName || typeof f.fileName !== "string" ||
+            !f.contentType || typeof f.contentType !== "string"
+    );
+
+    if (invalidFile) {
+        return res.status(400).json({
+            status: false,
+            data: null,
+            message: "Each file must have 'fileName' and 'contentType' as strings."
+        });
+    }
+
+    try {
+        const result = await CustomerServices.getPresignedPurUrls(files)
+        console.log(result);
+        
+        if (result.status) {
+            return res.json(result);
+        }
+        return res.status(400).json({
+            status: false,
+            data: null,
+            message: "Failed to generate presigned URLs."
+        });
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            status: false,
+            data: null,
+            message: "Failed to generate presigned URLs."
+        });
+    }
+
+})
+
+
+CustomerRoutes.post("/get-on-request-presigned-put-urls", async (req: Request, res: Response) => {
+    const { files, issueId } = req.body;
+
+    if (!issueId) {
+        return res.status(400).json({
+            status: false,
+            data: null,
+            message: "Invalid Request",
+        });
+    }
+
+    // Check if files exists and is an array
+    if (files == undefined || !files || !Array.isArray(files)) {
+
+        return res.status(400).json({
+            status: false,
+            data: null,
+            message: "Invalid request: 'files' should be an array of objects."
+        });
+    }
+
+    // Validate each file object
+    const invalidFile = files.find(
+        (f: any) =>
+            !f.fileName || typeof f.fileName !== "string" ||
+            !f.contentType || typeof f.contentType !== "string"
+    );
+
+    if (invalidFile) {
+        return res.status(400).json({
+            status: false,
+            data: null,
+            message: "Each file must have 'fileName' and 'contentType' as strings."
+        });
+    }
+
+    try {
+        const result = await CustomerServices.getPresignedPutUrlsBehalfOfRequest(files, issueId, req.user.id)
+        console.log(result);
+        
+        if (result.status) {
+            return res.json(result);
+        }
+        return res.status(400).json({
+            status: false,
+            data: null,
+            message: "Failed to generate presigned URLs."
+        });
+
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            status: false,
+            data: null,
+            message: "Failed to generate presigned URLs."
+        });
+    }
+
+})
+
+
+CustomerRoutes.post("/confirm-on-request-attachments-uploaded", async (req: Request, res: Response) => {
+    const { issueId, tempId } = req.body;
+
+    if (!issueId || !tempId) {
+        return res.status(400).json({
+            status: false,
+            data: null,
+            message: "Invalid request: 'issueId' and 'tempId' are required."
+        });
+    }
+
+    try {
+        const result = await CustomerServices.confirmOnRequestAttachmentsUploaded(issueId, tempId);
+        if (result.status) {
+            return res.json(result);
+        }
+        return res.status(400).json({
+            status: false,
+            data: null,
+            message: "Failed to confirm attachment upload."
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            status: false,
+            data: null,
+            message: "Failed to confirm attachment upload."
+        });
+    }
+})
+
 export default CustomerRoutes;
