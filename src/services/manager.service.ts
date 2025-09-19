@@ -552,6 +552,42 @@ class ManagerServices {
         });
     }
 
+    static async getManagerHomeStats() {
+        try {
+            const totalIssues = await prisma.issue.count();
+            const closedIssues = await prisma.issue.count({
+                where: {
+                    internalStatus: "CLOSED"
+                }
+            });
+            const newIssues = await prisma.issue.count({
+                where: {
+                    internalStatus: "NEW"
+                }
+            });
+
+            const inProgressIssues = totalIssues - closedIssues - newIssues;
+
+            return {
+                status: true,
+                data: {
+                    totalIssues,
+                    newIssues,
+                    closedIssues,
+                    inProgressIssues
+                },
+                message: "Manager home stats retrieved successfully"
+            };
+        } catch (error) {
+            console.error("Failed to fetch manager home stats:", error);
+            return {
+                status: false,
+                data: null,
+                message: "Failed to fetch manager home stats"
+            };
+        }
+    }
+
 }
 
 

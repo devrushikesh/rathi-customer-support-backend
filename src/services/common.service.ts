@@ -87,6 +87,52 @@ class CommonServices {
         return profile;
     }
 
+
+
+    static async updateFcmToken(user_id: number, role: string, device_token: string) {
+        try {
+            if (role == "CUSTOMER") {
+                await prisma.deviceToken.upsert({
+                    where: {
+                        customerId: user_id
+                    },
+                    update: {
+                        token: device_token
+                    },
+                    create: {
+                        customerId: user_id,
+                        token: device_token
+                    }
+                })
+            }
+            else {
+                await prisma.deviceToken.upsert({
+                    where: {
+                        employeeId: user_id.toString()
+                    },
+                    update: {
+                        token: device_token
+                    },
+                    create: {
+                        employeeId: user_id.toString(),
+                        token: device_token
+                    }
+                })
+            }
+
+            return {
+                status: true,
+                message: "Device Token Updated Successfully"
+            }
+
+        } catch (error) {
+            return {
+                status: false,
+                message: "Internal Server Error!"
+            }
+        }
+    }
+
 }
 
 

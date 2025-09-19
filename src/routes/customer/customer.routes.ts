@@ -1,8 +1,8 @@
-import express, { type Request, type Response } from "express";
+import express, { Router, type Request, type Response } from "express";
 import { createIssueController, getIssuesByStatusController, getProjectsList } from "../../controllers/customer.controller.js";
 import CustomerServices from "../../services/customer.service.js";
 
-const CustomerRoutes = express.Router();
+const CustomerRoutes: Router = express.Router();
 
 
 CustomerRoutes.get("/get-all-issues/:status", getIssuesByStatusController);

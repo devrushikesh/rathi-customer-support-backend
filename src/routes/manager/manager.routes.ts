@@ -1,8 +1,8 @@
-import express, { type Request, type Response } from "express";
+import express, { Router, type Request, type Response } from "express";
 import ManagerServices from "../../services/manager.service.js";
 import type { InternalStatus } from "@prisma/client";
 
-const ManagerRoutes = express.Router();
+const ManagerRoutes: Router = express.Router();
 
 
 ManagerRoutes.get("/get-new-issues", async (req: Request, res: Response) => {
@@ -315,5 +315,18 @@ ManagerRoutes.get("/get-project-detail-by-id/:projectId", async (req: Request, r
     }
 });
 
+
+ManagerRoutes.get("/get-home-page-stats", async (req: Request, res: Response) => {
+    try {
+        const result = await ManagerServices.getManagerHomeStats();
+        return res.json(result);
+    } catch (error) {
+        return res.status(500).json({
+            status: false,
+            data: null,
+            message: "Something went wrong"
+        })
+    }
+});
 
 export default ManagerRoutes;

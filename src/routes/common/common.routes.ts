@@ -1,9 +1,9 @@
 
-import express, { type Request, type Response } from "express";
+import express, { Router, type Request, type Response } from "express";
 import CommonServices from "../../services/common.service.js";
 // import { getIssueTimeLineController } from "../../controllers/common.controller.js";
 
-const CommonRoutes = express.Router();
+const CommonRoutes: Router = express.Router();
 
 
 // CommonRoutes.post("/get-issue-time-line", getIssueTimeLineController);
@@ -77,6 +77,44 @@ CommonRoutes.post("/get-presigned-get-url", async (req: Request, res: Response) 
     }
 })
 
+CommonRoutes.post("/update-fcm-token", async (req: Request, res: Response) => {
+    try {
+        const { fcm_token } = req.body;
+        const userId = req.user.id;
+        const role = req.user.role;
+
+        if (!fcm_token) {
+            return res.status(400).json({
+                status: false,
+                message: "Invalid Device Token",
+                data: null
+            })
+        }
+
+        const response = await CommonServices.updateFcmToken(userId, role, fcm_token);
+
+        if (!response) {
+            return res.status(500).json({
+                status: false,
+                message: "Unable to update device token",
+                data: null
+            })
+        }
+
+        return res.json({
+            status: true,
+            message: "Successfully updated device token",
+            data: null
+        })
+
+    } catch (error) {
+        return res.status(500).json({
+            status: false,
+            message: "Something Went Wrong",
+            data: null
+        })
+    }
+});
 
 
 export default CommonRoutes;

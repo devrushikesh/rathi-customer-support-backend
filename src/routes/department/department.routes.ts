@@ -1,8 +1,8 @@
-import express, { response, type Request, type Response } from "express";
+import express, { response, Router, type Request, type Response } from "express";
 import DepartmentService from "../../services/department.service.js";
 import { VisitStatus } from "@prisma/client";
 
-const DepartmentRoutes = express.Router();
+const DepartmentRoutes: Router = express.Router();
 
 
 
