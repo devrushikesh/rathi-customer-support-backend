@@ -1,5 +1,6 @@
 import type { InternalStatus, VisitStatus } from "@prisma/client";
 import prisma from "../prisma/client.js";
+import { sendPushNotification } from "./firebase.service.js";
 
 
 /**
@@ -329,6 +330,22 @@ class DepartmentService {
                     }
                 });
 
+                const fcmToken = await tx.deviceToken.findUnique({
+                    where: {
+                        userId: issue.customerId.toString()
+                    }
+                })
+
+                if (fcmToken) {
+                    sendPushNotification(fcmToken.token, {
+                        title: "Issue Taken up for Processing",
+                        body: `Team Started working on your issue with ticket No: ${issue.ticketNo} .\n tap to view details.`
+                    }, {
+                        action: 'OPEN_TICKET_DETAIL_PAGE',
+                        issueId: issue.id
+                    });
+                }
+
                 return issue;
             });
 
@@ -419,13 +436,48 @@ class DepartmentService {
                 });
 
                 // 3. Update issue status
-                await tx.issue.update({
+                const updatedIssue = await tx.issue.update({
                     where: { id: issueId },
                     data: {
                         latestStatusId: latestIssueTimeLineEntry.id,
                         isSiteVisitRequested: true
                     }
                 });
+
+
+                const serviceHeadId = await tx.employee.findFirst({
+                    where: {
+                        department: 'SERVICE',
+                        role: 'HEAD'
+                    },
+                    select: {
+                        id: true
+                    }
+                })
+
+                if (!serviceHeadId) {
+                    throw new Error("Invalid Request");
+                }
+
+                const fcmToken = await tx.deviceToken.findUnique({
+                    where: {
+                        userId: serviceHeadId.id
+                    }
+                })
+
+                console.log(fcmToken);
+                
+
+                if (fcmToken) {
+                    sendPushNotification(fcmToken.token, {
+                        title: "Site Visit Request",
+                        body: `Site visit requested for ticket No: ${updatedIssue.ticketNo} .\n tap to view details.`
+                    }, {
+                        action: 'OPEN_SITE_VISIT_MANAGE_PAGE',
+                        siteVisitRequestId: siteVisitRequest!.id
+                    });
+                }
+
             });
 
             return {
@@ -487,7 +539,7 @@ class DepartmentService {
                     }
                 });
 
-                await tx.issue.update({
+                const updatedIssue = await tx.issue.update({
                     where: {
                         id: updatedRequest.issueId
                     },
@@ -496,6 +548,35 @@ class DepartmentService {
                         isSiteVisitRequested: false
                     }
                 })
+
+                const workingHeadId = await tx.issueAssignedDepartment.findFirst({
+                    where: {
+                        issueId: updatedIssue.id
+                    },
+                    select: {
+                        employeeId: true
+                    }
+                })
+
+                if (!workingHeadId) {
+                    throw new Error("Invalid Request");
+                }
+
+                const fcmToken = await tx.deviceToken.findUnique({
+                    where: {
+                        userId: workingHeadId.employeeId
+                    }
+                })
+
+                if (fcmToken) {
+                    sendPushNotification(fcmToken.token, {
+                        title: "Site Visit Request Rejected",
+                        body: `Service head had rejected site visit request for ticket No: ${updatedIssue.ticketNo} .\n tap to view details.`
+                    }, {
+                        action: 'OPEN_TICKET_DETAIL_PAGE',
+                        issueId: updatedIssue.id
+                    });
+                }
 
                 return updatedRequest;
             });
@@ -560,7 +641,7 @@ class DepartmentService {
             });
 
             // Update the issue with the latest status
-            await tx.issue.update({
+            const updatedIssue = await tx.issue.update({
                 where: {
                     id: issueId
                 },
@@ -568,6 +649,27 @@ class DepartmentService {
                     latestStatusId: latestIssueTimeLineEntry.id
                 }
             });
+
+            const fcmToken = await tx.deviceToken.findUnique({
+                where: {
+                    userId: updatedIssue.customerId.toString()
+                }
+            })
+
+            if (fcmToken) {
+                sendPushNotification(
+                    fcmToken.token,
+                    {
+                        title: "New Comment on Your Ticket",
+                        body: `A new comment was added to Ticket #${updatedIssue.ticketNo}:\n“${comment}”\n\nTap to view the full details.`,
+                    },
+                    {
+                        action: "OPEN_TICKET_DETAIL_PAGE",
+                        issueId: updatedIssue.id,
+                    }
+                );
+            }
+
 
             return {
                 status: true,
@@ -658,7 +760,7 @@ Mobile: ${visitor.mobile_no}`
                     }
                 })
 
-                await tx.issue.update({
+                const updatedIssue = await tx.issue.update({
                     where: {
                         id: issueId
                     },
@@ -684,6 +786,51 @@ Mobile: ${visitor.mobile_no}`
                         status: 'COMPLETED',
                     }
                 })
+
+                const workingHeadId = await tx.issueAssignedDepartment.findFirst({
+                    where: {
+                        issueId: updatedIssue.id
+                    },
+                    select: {
+                        employeeId: true
+                    }
+                })
+
+                if (!workingHeadId) {
+                    throw new Error("Invalid Request");
+                }
+
+
+                const orConditions: any[] = [
+                    { customerId: updatedIssue.customerId },
+                    { employeeId: workingHeadId.employeeId }
+                ];
+
+                const fcmTokenCustomer = await tx.deviceToken.findMany({
+                    where: {
+                        OR: orConditions
+                    }
+                })
+
+                if (fcmTokenCustomer) {
+                    sendPushNotification(fcmTokenCustomer[0]!.token, {
+                        title: "Site Visit Scheduled",
+                        body: `Site Visit Scheduled for ${updatedIssue.ticketNo} on ${formattedDate}.\n tap to view details.`
+                    }, {
+                        action: 'OPEN_TICKET_DETAIL_PAGE',
+                        issueId: updatedIssue.id
+                    });
+
+                    sendPushNotification(fcmTokenCustomer[1]!.token, {
+                        title: "Site Visit Scheduled Successfully",
+                        body: `Service head has been scheduled site visit for ticket No: ${updatedIssue.ticketNo} .\n tap to view details.`
+                    }, {
+                        action: 'OPEN_TICKET_DETAIL_PAGE',
+                        issueId: updatedIssue.id
+                    });
+                }
+
+
 
             });
 
@@ -712,7 +859,7 @@ Mobile: ${visitor.mobile_no}`
      * @param scheduledDate - Scheduled Date
      * @returns Success or failure response
      */
-    static async createSiteVisitScheduleForServiceDepartments(employeeId: string, issueId: string, visitorId: string, scheduledDate: Date) {
+    static async createSiteVisitScheduleForServiceDepartments(employeeId: string, issueId: string, visitorId: string, scheduledDate: Date, department: string) {
         try {
 
             const visitor = await prisma.employee.findUnique({
@@ -782,7 +929,7 @@ Mobile: ${visitor.mobile_no}`
                     data: { pendingVisits: { increment: 1 } }
                 })
 
-                await tx.issue.update({
+                const updatedIssue = await tx.issue.update({
                     where: {
                         id: issueId
                     },
@@ -791,8 +938,32 @@ Mobile: ${visitor.mobile_no}`
                         isSiteVisitScheduled: true,
                         isSiteVisitRequested: true
                     }
+                });
+
+
+
+
+                const orConditions: any[] = [
+                    { customerId: updatedIssue.customerId },
+                ];
+
+                const fcmTokenCustomer = await tx.deviceToken.findMany({
+                    where: {
+                        OR: orConditions
+                    }
                 })
 
+                if (fcmTokenCustomer) {
+                    sendPushNotification(fcmTokenCustomer[0]!.token, {
+                        title: "Site Visit Cancelled",
+                        body: `Your scheduled site visit for ticket No: ${updatedIssue.ticketNo} has been cancelled.\n tap to view details.`
+                    }, {
+                        action: 'OPEN_TICKET_DETAIL_PAGE',
+                        issueId: updatedIssue.id
+                    });
+                }
+
+                return true;
 
             });
 
@@ -811,7 +982,6 @@ Mobile: ${visitor.mobile_no}`
             };
         }
     }
-
 
     /**
      * Get list of all pending site visit requests.
@@ -968,7 +1138,7 @@ Mobile: ${visitor.mobile_no}`
     }
 
 
-    static async completeScheduledSiteVisit(headId: string, siteVisitId: string) {
+    static async completeScheduledSiteVisit(headId: string, siteVisitId: string, department: string) {
         try {
 
             const transaction = await prisma.$transaction(async (tx) => {
@@ -1023,7 +1193,7 @@ Mobile: ${visitor.mobile_no}`
                     }
                 })
 
-                await tx.issue.update({
+                const updatedIssue = await tx.issue.update({
                     where: {
                         id: oldSiteVisitEntry.issueId
                     },
@@ -1033,6 +1203,48 @@ Mobile: ${visitor.mobile_no}`
                         isSiteVisitScheduled: false
                     }
                 })
+
+
+                const workingHeadId = await tx.issueAssignedDepartment.findFirst({
+                    where: {
+                        issueId: updatedIssue.id
+                    },
+                    select: {
+                        employeeId: true
+                    }
+                })
+
+                if (!workingHeadId) {
+                    throw new Error("Invalid Request");
+                }
+
+
+                const orConditions: any[] = [
+                    { customerId: updatedIssue.customerId },
+                ];
+
+                if (department !== 'SERVICE') {
+                    orConditions.push({ employeeId: workingHeadId.employeeId });
+                }
+
+                const fcmTokenCustomer = await tx.deviceToken.findMany({
+                    where: {
+                        OR: orConditions
+                    }
+                })
+
+                if (fcmTokenCustomer) {
+                    sendPushNotification(fcmTokenCustomer[0]!.token, {
+                        title: "Site Visit Cancelled",
+                        body: `Your scheduled site visit for ticket No: ${updatedIssue.ticketNo} has been cancelled.\n tap to view details.`
+                    }, {
+                        action: 'OPEN_TICKET_DETAIL_PAGE',
+                        issueId: updatedIssue.id
+                    });
+                }
+
+
+
                 return true
             })
 
@@ -1052,7 +1264,7 @@ Mobile: ${visitor.mobile_no}`
     }
 
 
-    static async cancelScheduledSiteVisit(headId: string, siteVisitId: string, remark?: string) {
+    static async cancelScheduledSiteVisit(headId: string, siteVisitId: string, department: string, remark?: string) {
         try {
 
             const transaction = await prisma.$transaction(async (tx) => {
@@ -1097,7 +1309,7 @@ Mobile: ${visitor.mobile_no}`
                     }
                 })
 
-                await tx.issue.update({
+                const updatedIssue = await tx.issue.update({
                     where: {
                         id: oldSiteVisitEntry.issueId
                     },
@@ -1107,6 +1319,44 @@ Mobile: ${visitor.mobile_no}`
                         isSiteVisitScheduled: false
                     }
                 })
+
+                const workingHeadId = await tx.issueAssignedDepartment.findFirst({
+                    where: {
+                        issueId: updatedIssue.id
+                    },
+                    select: {
+                        employeeId: true
+                    }
+                })
+
+                if (!workingHeadId) {
+                    throw new Error("Invalid Request");
+                }
+
+                const orConditions: any[] = [
+                    { customerId: updatedIssue.customerId },
+                ];
+
+                if (department !== 'SERVICE') {
+                    orConditions.push({ employeeId: workingHeadId.employeeId });
+                }
+
+                const fcmTokenCustomer = await tx.deviceToken.findMany({
+                    where: {
+                        OR: orConditions
+                    }
+                })
+
+                if (fcmTokenCustomer) {
+                    sendPushNotification(fcmTokenCustomer[0]!.token, {
+                        title: "Site Visit Cancelled",
+                        body: `Your scheduled site visit for ticket No: ${updatedIssue.ticketNo} has been cancelled.\n tap to view details.`
+                    }, {
+                        action: 'OPEN_TICKET_DETAIL_PAGE',
+                        issueId: updatedIssue.id
+                    });
+                }
+
                 return true
             })
 
@@ -1239,6 +1489,22 @@ Mobile: ${visitor.mobile_no}`
                 }
             })
 
+            const fcmToken = await tx.deviceToken.findUnique({
+                where: {
+                    userId: issueEntry.customerId.toString()
+                }
+            })
+
+            if (fcmToken) {
+                sendPushNotification(fcmToken.token, {
+                    title: "Ticket is Closed",
+                    body: `Your Issue is resolved ticket No: ${issueEntry.ticketNo}.\n tap to view details.`
+                }, {
+                    action: 'OPEN_TICKET_DETAIL_PAGE',
+                    issueId: issueId
+                });
+            }
+
             return { status: true, message: "Issue resolved successfully" };
         });
     }
@@ -1370,9 +1636,40 @@ Mobile: ${visitor.mobile_no}`
                 },
                 data: {
                     isAttachmentsRequested: true,
+                    attachmentsRequestedByID: employeeId,
                     latestStatusId: latestIssueTimeLineEntry.id
                 }
             });
+
+            const issue = await tx.issue.findUnique({
+                where: {
+                    id: issueId
+                },
+                select: {
+                    customerId: true,
+                    ticketNo: true
+                }
+            })
+
+            if (!issue) {
+                throw new Error("Invalid Request");
+            }
+
+            const fcmToken = await tx.deviceToken.findUnique({
+                where: {
+                    userId: issue.customerId.toString()
+                }
+            })
+
+            if (fcmToken) {
+                sendPushNotification(fcmToken.token, {
+                    title: "Request From Rathi Engineering!",
+                    body: `Please upload attachments for ticket No: ${issue.ticketNo}.\n tap to upload attachments.`
+                }, {
+                    action: 'OPEN_TICKET_DETAIL_PAGE',
+                    issueId: issueId
+                });
+            }
 
             return {
                 status: true,

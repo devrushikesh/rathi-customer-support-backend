@@ -1,5 +1,6 @@
 import type { InternalStatus } from "@prisma/client";
 import prisma from "../prisma/client.js";
+import { sendPushNotification } from "./firebase.service.js";
 
 class ManagerServices {
 
@@ -107,6 +108,30 @@ class ManagerServices {
                     finalProductSize
                 }
             });
+
+            const fcmToken = await prisma.deviceToken.findUnique({
+                where: {
+                    userId: customerId.toString()
+                }
+            })
+
+            if (fcmToken) {
+                sendPushNotification(
+                    fcmToken.token,
+                    {
+                        // Short, clear headline
+                        title: "New Project Created",
+                        // Friendly message with key info
+                        body: `Your project “${projectName}” has been successfully created.\nTap to view details.`,
+                    },
+                    {
+                        // Custom data payload for deep-link navigation
+                        action: "OPEN_PROJECT_DETAIL_PAGE",
+                        projectId: newProject.id.toString(),
+                    }
+                );
+            }
+
             return {
                 status: true,
                 data: newProject,
@@ -413,7 +438,7 @@ class ManagerServices {
                 })
 
 
-                await tx.issue.update({
+                const updatedIssue = await tx.issue.update({
                     where: {
                         id: issueId
                     },
@@ -423,6 +448,29 @@ class ManagerServices {
                         latestStatusId: newTimeLineEntry.id
                     }
                 })
+
+                const fcmToken = await prisma.deviceToken.findUnique({
+                    where: {
+                        userId: headId
+                    }
+                })
+
+                if (fcmToken) {
+                    sendPushNotification(
+                        fcmToken.token,
+                        {
+                            // Short, clear headline
+                            title: "New Issue Assigned To Your Department",
+                            // Friendly message with key info
+                            body: `A new issue has been assigned to your department.\n Ticket ID: ${updatedIssue.ticketNo}. Please check the details.`,
+                        },
+                        {
+                            // Custom data payload for deep-link navigation
+                            action: "OPEN_ISSUE_DETAIL_PAGE",
+                            issueId: updatedIssue.id,
+                        }
+                    );
+                }
 
                 return newAssignment;
             })
@@ -447,6 +495,8 @@ class ManagerServices {
     static async getIssueById(issueId: string, managerId: string) {
         try {
 
+            console.log(issueId, managerId);
+            
             const issue = await prisma.issue.findFirst({
                 where: {
                     id: issueId

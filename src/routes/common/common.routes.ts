@@ -44,8 +44,6 @@ CommonRoutes.post("/get-presigned-get-url", async (req: Request, res: Response) 
         const {fileKey} = req.body;
         const userId = req.user.id;
         const role = req.user.role;
-
-        console.log("Called");
         
         console.log(fileKey);
         
@@ -79,11 +77,11 @@ CommonRoutes.post("/get-presigned-get-url", async (req: Request, res: Response) 
 
 CommonRoutes.post("/update-fcm-token", async (req: Request, res: Response) => {
     try {
-        const { fcm_token } = req.body;
+        const { fcmToken } = req.body;
         const userId = req.user.id;
         const role = req.user.role;
 
-        if (!fcm_token) {
+        if (!fcmToken) {
             return res.status(400).json({
                 status: false,
                 message: "Invalid Device Token",
@@ -91,7 +89,7 @@ CommonRoutes.post("/update-fcm-token", async (req: Request, res: Response) => {
             })
         }
 
-        const response = await CommonServices.updateFcmToken(userId, role, fcm_token);
+        const response = await CommonServices.updateFcmToken(userId, role, fcmToken);
 
         if (!response) {
             return res.status(500).json({

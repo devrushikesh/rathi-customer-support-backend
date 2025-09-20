@@ -29,7 +29,6 @@ DepartmentRoutes.post("/add-comment-to-issue", async (req: Request, res: Respons
 
 
 DepartmentRoutes.get("/get-issues-by-status/:status", async (req: Request, res: Response) => {
-  console.log("called");
 
 
   const status = req.params.status
@@ -223,7 +222,7 @@ DepartmentRoutes.post("/complete-scheduled-site-visit/:siteVisitId", async (req:
   }
 
   try {
-    const result = await DepartmentService.completeScheduledSiteVisit(headId, siteVisitId);
+    const result = await DepartmentService.completeScheduledSiteVisit(headId, siteVisitId, req.user.department);
 
     if (result.status) {
       return res.json(result);
@@ -445,7 +444,8 @@ DepartmentRoutes.post("/create-own-department-site-visit", async (req: Request, 
       req.user.id,
       issueId,
       visitorId,
-      scheduledDateObj
+      scheduledDateObj,
+      req.user.department
     );
 
     if (result.status) {

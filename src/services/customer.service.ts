@@ -1,5 +1,6 @@
 
 import prisma from "../prisma/client.js";
+import { sendPushNotification } from "./firebase.service.js";
 import { generateMultiplePresignedPostUrls, moveFolder } from "./s3.service.js";
 
 import { randomUUID } from "crypto";
@@ -21,12 +22,12 @@ interface FileItem {
 
 class CustomerServices {
 
-  static async confirmOnRequestAttachmentsUploaded(issueId: string, tempId: string) {
+  static async confirmOnRequestAttachmentsUploaded(issueId: string, tempId: string, customerID: number) {
     try {
       // 1️⃣ Check if issue exists and is expecting attachments
       const issue = await prisma.issue.findUnique({
         where: { id: issueId },
-        select: { ticketNo: true, isAttachmentsRequested: true },
+        select: { ticketNo: true, isAttachmentsRequested: true, attachmentsRequestedByID: true },
       });
 
       if (!issue) {
@@ -40,6 +41,8 @@ class CustomerServices {
           message: "Attachments not requested for this issue",
         };
       }
+
+
 
       // 2️⃣ Move files first (external S3 action – do outside transaction)
       const movedFiles = await moveFolder(
@@ -58,6 +61,20 @@ class CustomerServices {
 
       // 3️⃣ Create timeline + update issue atomically
       const result = await prisma.$transaction(async (tx) => {
+
+
+        const customer = await tx.customer.findUnique({
+          where: {
+            id: customerID
+          },
+          select: {
+            name: true
+          }
+        })
+
+        if (!customer) {
+          throw new Error("Invalid request");
+        }
         // create timeline entry
         const timeline = await tx.issueTimeLine.create({
           data: {
@@ -76,9 +93,34 @@ class CustomerServices {
           data: {
             attachmentUrls: { push: movedFiles },
             isAttachmentsRequested: false,
+            attachmentsRequestedByID: null,
             latestStatusId: timeline.id,
           },
         });
+
+
+
+        // send notification to manager
+        const fcmToken = await tx.deviceToken.findFirst({
+          where: {
+            userId: issue.attachmentsRequestedByID
+          },
+          select: {
+            token: true
+          }
+        });
+        console.log(fcmToken);
+
+        if (fcmToken) {
+
+          sendPushNotification(fcmToken.token, {
+            title: "Attachments Succesfully Added!",
+            body: `${customer.name} uploaded attachments for ticket No: ${issue.ticketNo}.\n tap to view details.`
+          }, {
+            action: 'OPEN_TICKET_DETAIL_PAGE',
+            issueId: issueId
+          });
+        }
 
         return { timeline, updatedIssue };
       });
@@ -258,6 +300,40 @@ class CustomerServices {
             comment: "Issue Successfully Created. Our team review this issue soon."
           }
         });
+        const managerID = await tnx.employee.findFirst({
+          where: {
+            role: 'ISSUE_MANAGER'
+          },
+          select: {
+            id: true
+          }
+        })
+
+        if (!managerID) {
+          throw new Error("No manager found to assign the issue");
+        }
+
+        // send notification to manager
+        const managerToken = await tnx.deviceToken.findFirst({
+          where: {
+            userId: managerID.id
+          },
+          select: {
+            token: true
+          }
+        });
+        console.log(managerToken);
+
+        if (managerToken) {
+
+          sendPushNotification(managerToken.token, {
+            title: "New Issue Created",
+            body: `${customer.name} raised issue: ${newIssue.ticketNo}.\n tap to view details.`
+          }, {
+            action: 'OPEN_TICKET_DETAIL_PAGE',
+            issueId: newIssue.id
+          });
+        }
 
         return {
           issue: newIssue,

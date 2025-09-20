@@ -4,7 +4,7 @@ import { generateGetPresignedUrl } from "./s3.service.js";
 
 class CommonServices {
 
-    static async getPresignedGetUrl(key: string, role: string, userId: string|number) {
+    static async getPresignedGetUrl(key: string, role: string, userId: string | number) {
         const splitedKey = key.split("/")
         if (splitedKey.length != 3) {
             throw new Error("Invalid key");
@@ -55,7 +55,7 @@ class CommonServices {
     }
 
 
-    static async getProfile(userId: string | number, role: string) {   
+    static async getProfile(userId: string | number, role: string) {
         let profile;
         if (role == "CUSTOMER") {
             profile = await prisma.customer.findUnique({
@@ -87,38 +87,20 @@ class CommonServices {
         return profile;
     }
 
-
-
     static async updateFcmToken(user_id: number, role: string, device_token: string) {
         try {
-            if (role == "CUSTOMER") {
-                await prisma.deviceToken.upsert({
-                    where: {
-                        customerId: user_id
-                    },
-                    update: {
-                        token: device_token
-                    },
-                    create: {
-                        customerId: user_id,
-                        token: device_token
-                    }
-                })
-            }
-            else {
-                await prisma.deviceToken.upsert({
-                    where: {
-                        employeeId: user_id.toString()
-                    },
-                    update: {
-                        token: device_token
-                    },
-                    create: {
-                        employeeId: user_id.toString(),
-                        token: device_token
-                    }
-                })
-            }
+            await prisma.deviceToken.upsert({
+                where: {
+                    userId: user_id.toString()
+                },
+                update: {
+                    token: device_token
+                },
+                create: {
+                    userId: user_id.toString(),
+                    token: device_token
+                }
+            })
 
             return {
                 status: true,

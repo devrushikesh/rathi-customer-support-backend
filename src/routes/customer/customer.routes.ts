@@ -200,7 +200,7 @@ CustomerRoutes.post("/confirm-on-request-attachments-uploaded", async (req: Requ
     }
 
     try {
-        const result = await CustomerServices.confirmOnRequestAttachmentsUploaded(issueId, tempId);
+        const result = await CustomerServices.confirmOnRequestAttachmentsUploaded(issueId, tempId, req.user.id);
         if (result.status) {
             return res.json(result);
         }

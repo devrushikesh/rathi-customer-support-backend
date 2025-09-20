@@ -32,6 +32,7 @@
     // "noFallthroughCasesInSwitch": true,
     // "noPropertyAccessFromIndexSignature": true,
 
+    "resolveJsonModule": true,
     // Recommended Options
     "strict": true,
     "jsx": "react-jsx",

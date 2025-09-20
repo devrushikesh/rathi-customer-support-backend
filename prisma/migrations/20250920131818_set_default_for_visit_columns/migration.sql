@@ -11,7 +11,7 @@ CREATE TYPE "public"."CustomerStatus" AS ENUM ('UNDER_REVIEW', 'OPEN', 'IN_PROGR
 CREATE TYPE "public"."InternalStatus" AS ENUM ('NEW', 'OPEN', 'IN_PROGRESS', 'TRANSFERRED', 'RESOLVED', 'REOPENED', 'CLOSED', 'CANCELLED');
 
 -- CreateEnum
-CREATE TYPE "public"."ActionType" AS ENUM ('ISSUE_CREATED', 'ASSIGNED', 'REASSIGNED', 'TRANSFERRED', 'ESCALATED', 'RESOLVED', 'REOPENED', 'CLOSED', 'CANCELLED', 'COMMENT_ADDED', 'WORK_STARTED', 'ATTACHMENT_ADDED', 'ATTACHMENT_REQUESTED', 'SITE_VISIT_REQUESTED', 'SITE_VISIT_REQUEST_REJECTED', 'SITE_VISIT_SCHEDULED', 'SITE_VISIT_COMPLETED');
+CREATE TYPE "public"."ActionType" AS ENUM ('ISSUE_CREATED', 'ASSIGNED', 'REASSIGNED', 'TRANSFERRED', 'ESCALATED', 'RESOLVED', 'REOPENED', 'CLOSED', 'CANCELLED', 'INVALID', 'COMMENT_ADDED', 'WORK_STARTED', 'ATTACHMENT_ADDED', 'ATTACHMENT_REQUESTED', 'SITE_VISIT_REQUESTED', 'SITE_VISIT_REQUEST_REJECTED', 'SITE_VISIT_REQUEST_CANCELLED', 'SITE_VISIT_SCHEDULED', 'SITE_VISIT_COMPLETED', 'SITE_VISIT_CANCELLED');
 
 -- CreateEnum
 CREATE TYPE "public"."Priority" AS ENUM ('LOW', 'MEDIUM', 'HIGH', 'URGENT');
@@ -26,7 +26,7 @@ CREATE TYPE "public"."VisitStatus" AS ENUM ('SCHEDULED', 'COMPLETED', 'CANCELLED
 CREATE TYPE "public"."Department" AS ENUM ('SALES', 'SERVICE', 'ENGINEERING', 'MANUFACTURING', 'FABRICATION', 'DESIGN', 'QUALITY');
 
 -- CreateEnum
-CREATE TYPE "public"."SiteVisitRequestStatus" AS ENUM ('PENDING', 'COMPLETED', 'REJECTED');
+CREATE TYPE "public"."SiteVisitRequestStatus" AS ENUM ('PENDING', 'COMPLETED', 'REJECTED', 'CANCELLED');
 
 -- CreateTable
 CREATE TABLE "public"."customers" (
@@ -50,6 +50,9 @@ CREATE TABLE "public"."employees" (
     "department" "public"."Department",
     "role" "public"."EmployeeRole" NOT NULL,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "location" TEXT,
+    "pendingVisits" INTEGER NOT NULL DEFAULT 0,
+    "completedVisits" INTEGER NOT NULL DEFAULT 0,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -73,6 +76,19 @@ CREATE TABLE "public"."projects" (
 );
 
 -- CreateTable
+CREATE TABLE "public"."DeviceToken" (
+    "id" SERIAL NOT NULL,
+    "token" TEXT NOT NULL,
+    "platform" TEXT,
+    "customerId" INTEGER,
+    "employeeId" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "DeviceToken_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "public"."issues" (
     "id" TEXT NOT NULL,
     "ticketNo" VARCHAR(20) NOT NULL,
@@ -86,6 +102,7 @@ CREATE TABLE "public"."issues" (
     "isSiteVisitRequested" BOOLEAN NOT NULL DEFAULT false,
     "isAttachmentsRequested" BOOLEAN NOT NULL DEFAULT false,
     "isSiteVisitScheduled" BOOLEAN NOT NULL DEFAULT false,
+    "attachmentsRequestedByID" TEXT,
     "dueDate" TIMESTAMP(3),
     "resolvedAt" TIMESTAMP(3),
     "closedAt" TIMESTAMP(3),
@@ -186,6 +203,15 @@ CREATE INDEX "employees_department_isActive_idx" ON "public"."employees"("depart
 CREATE INDEX "projects_id_idx" ON "public"."projects"("id");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "DeviceToken_token_key" ON "public"."DeviceToken"("token");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "DeviceToken_customerId_key" ON "public"."DeviceToken"("customerId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "DeviceToken_employeeId_key" ON "public"."DeviceToken"("employeeId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "issues_ticketNo_key" ON "public"."issues"("ticketNo");
 
 -- CreateIndex
@@ -232,6 +258,12 @@ CREATE INDEX "issue_timeline_visibleToCustomer_idx" ON "public"."issue_timeline"
 
 -- AddForeignKey
 ALTER TABLE "public"."projects" ADD CONSTRAINT "projects_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "public"."customers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."DeviceToken" ADD CONSTRAINT "DeviceToken_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "public"."customers"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."DeviceToken" ADD CONSTRAINT "DeviceToken_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "public"."employees"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "public"."issues" ADD CONSTRAINT "issues_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "public"."projects"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

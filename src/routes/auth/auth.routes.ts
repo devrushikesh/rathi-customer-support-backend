@@ -8,7 +8,7 @@ import AuthMiddleware from "../../middlewares/auth.middleware.js";
 const AuthRouter: Router = Router();
 
 
-AuthRouter.post("/get-otp", getOtpAuthController);
+AuthRouter.post("/get-otp", getOtpAuthController); 
 
 AuthRouter.post("/verify-otp", verifyOtpAuthController);
 
@@ -47,5 +47,14 @@ AuthRouter.post("/refresh-token", async (req: Request<{}, {}, { refreshToken: st
         })
     }
 });
+
+AuthRouter.get("/logout", AuthMiddleware.AuthenticateUser, async (req: Request, res: Response) => {
+    const result = await AuthService.logout(req.user.id);
+    if (result.status) {
+        return res.json(result);
+    }else{
+        return res.status(400).json(result)
+    }
+})
 
 export default AuthRouter;

@@ -8,7 +8,6 @@ class AuthService {
 
     static async getNewAccessToken(refreshToken: string): Promise<{ status: boolean, message: string, accessToken: { token: string; expiresAt: number } | null }> {
         try {
-            console.log("Refresh Token:", refreshToken);
             
             const verified = verify_jwt_token<string | number>(refreshToken, "refresh");
             if (!verified) {
@@ -199,6 +198,37 @@ class AuthService {
                 message: "Internal Server Error!",
                 data: null
             }
+        }
+    }
+
+    static async logout(userId: string) {
+        try {
+
+            if (!userId) {
+                return {
+                status: false,
+                message: "Invalid Request"
+            }
+            }
+
+            await prisma.deviceToken.delete({
+                where: {
+                    userId: userId
+                }
+            })
+
+            return {
+                status: true,
+                message: "Successfully logged out"
+            }
+
+        } catch (error) {
+
+            return {
+                status: false,
+                message: "Internal Server Error!"
+            }
+
         }
     }
 

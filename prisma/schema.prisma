@@ -24,7 +24,6 @@ model Customer {
 
   @@index([mobile_no])
   @@map("customers")
-  DeviceToken DeviceToken[]
 }
 
 model Employee {
@@ -52,7 +51,6 @@ model Employee {
   @@map("employees")
   siteVisitsAsVisitor IssueSiteVisit[] @relation("SiteVisitorRelation")
   siteVisitsAsWorkingHead IssueSiteVisit[] @relation("WorkingHeadRelation")
-  DeviceToken DeviceToken[]
 }
 
 model Projects {
@@ -79,15 +77,12 @@ model DeviceToken {
   id          Int       @id @default(autoincrement())
   token       String    @unique
   platform    String?   // iOS / Android / Web
-
-  customerId  Int?      @unique   // ensure at most one token per customer
-  employeeId  String?   @unique   // ensure at most one token per employee
-
-  customer    Customer? @relation(fields: [customerId], references: [id])
-  employee    Employee? @relation(fields: [employeeId], references: [id])
+  userId     String?  @unique
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  @@map("device_tokens")
 }
 
 
@@ -120,6 +115,7 @@ model Issue {
   isSiteVisitRequested Boolean @default(false)
   isAttachmentsRequested Boolean @default(false)
   isSiteVisitScheduled Boolean @default(false)
+  attachmentsRequestedByID String?
 
   // Important dates
   dueDate    DateTime?
