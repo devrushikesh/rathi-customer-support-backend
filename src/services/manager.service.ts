@@ -587,7 +587,7 @@ class ManagerServices {
             }
 
             // 4. Update issue with latest timeline entry
-            await tx.issue.update({
+            const updatedIssue = await tx.issue.update({
                 where: { id: issueId },
                 data: {
                     internalStatus: "CLOSED",
@@ -599,6 +599,29 @@ class ManagerServices {
                     resolvedAt: new Date(),
                 },
             });
+
+            const fcmToken = await prisma.deviceToken.findUnique({
+                where: {
+                    userId: updatedIssue.customerId.toString()
+                }
+            })
+            
+            if (fcmToken) {
+                sendPushNotification(
+                    fcmToken.token,
+                    {
+                        // Short, clear headline
+                        title: "Issue Marked as Invalid",
+                        // Friendly message with key info
+                        body: `Your issue “${updatedIssue.ticketNo}” has been marked as invalid.\nTap to view details.`,
+                    },
+                    {
+                        // Custom data payload for deep-link navigation
+                        action: "OPEN_ISSUE_DETAIL_PAGE",
+                        projectId: issueId,
+                    }
+                );
+            }
 
             return { status: true, message: "Issue marked as invalid successfully" };
         });

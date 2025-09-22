@@ -804,8 +804,8 @@ Mobile: ${visitor.mobile_no}`
 
 
                 const orConditions: any[] = [
-                    { customerId: updatedIssue.customerId },
-                    { employeeId: workingHeadId.employeeId }
+                    { userId: updatedIssue.customerId },
+                    { userId: workingHeadId.employeeId }
                 ];
 
                 const fcmTokenCustomer = await tx.deviceToken.findMany({
@@ -946,7 +946,7 @@ Mobile: ${visitor.mobile_no}`
 
 
                 const orConditions: any[] = [
-                    { customerId: updatedIssue.customerId },
+                    { userId: updatedIssue.customerId },
                 ];
 
                 const fcmTokenCustomer = await tx.deviceToken.findMany({
@@ -1222,11 +1222,11 @@ Mobile: ${visitor.mobile_no}`
 
 
                 const orConditions: any[] = [
-                    { customerId: updatedIssue.customerId },
+                    { userId: updatedIssue.customerId },
                 ];
 
                 if (department !== 'SERVICE') {
-                    orConditions.push({ employeeId: workingHeadId.employeeId });
+                    orConditions.push({ userId: workingHeadId.employeeId });
                 }
 
                 const fcmTokenCustomer = await tx.deviceToken.findMany({
