@@ -808,14 +808,14 @@ Mobile: ${visitor.mobile_no}`
                     { userId: workingHeadId.employeeId.toString() }
                 ];
 
-                const fcmTokenCustomer = await tx.deviceToken.findMany({
+                const fcmToken = await tx.deviceToken.findMany({
                     where: {
                         OR: orConditions
                     }
                 })
 
-                if (fcmTokenCustomer) {
-                    sendPushNotification(fcmTokenCustomer[0]!.token, {
+                if (fcmToken.length > 0) {
+                    sendPushNotification(fcmToken[0]!.token, {
                         title: "Site Visit Scheduled",
                         body: `Site Visit Scheduled for ${updatedIssue.ticketNo} on ${formattedDate}.\n tap to view details.`
                     }, {
@@ -823,17 +823,16 @@ Mobile: ${visitor.mobile_no}`
                         issueId: updatedIssue.id
                     });
 
-                    sendPushNotification(fcmTokenCustomer[1]!.token, {
-                        title: "Site Visit Scheduled Successfully",
-                        body: `Service head has been scheduled site visit for ticket No: ${updatedIssue.ticketNo} .\n tap to view details.`
-                    }, {
-                        action: 'OPEN_TICKET_DETAIL_PAGE',
-                        issueId: updatedIssue.id
-                    });
+                    if (fcmToken.length > 1) {
+                        sendPushNotification(fcmToken[1]!.token, {
+                            title: "Site Visit Scheduled Successfully",
+                            body: `Service head has been scheduled site visit for ticket No: ${updatedIssue.ticketNo} .\n tap to view details.`
+                        }, {
+                            action: 'OPEN_TICKET_DETAIL_PAGE',
+                            issueId: updatedIssue.id
+                        });
+                    }
                 }
-
-
-
             });
 
             return {
