@@ -466,7 +466,7 @@ class DepartmentService {
                 })
 
                 console.log(fcmToken);
-                
+
 
                 if (fcmToken) {
                     sendPushNotification(fcmToken.token, {
@@ -650,24 +650,26 @@ class DepartmentService {
                 }
             });
 
-            const fcmToken = await tx.deviceToken.findUnique({
-                where: {
-                    userId: updatedIssue.customerId.toString()
-                }
-            })
-
-            if (fcmToken) {
-                sendPushNotification(
-                    fcmToken.token,
-                    {
-                        title: "New Comment on Your Ticket",
-                        body: `A new comment was added to Ticket #${updatedIssue.ticketNo}:\n“${comment}”\n\nTap to view the full details.`,
-                    },
-                    {
-                        action: "OPEN_TICKET_DETAIL_PAGE",
-                        issueId: updatedIssue.id,
+            if (isVisibleToCustomer) {
+                const fcmToken = await tx.deviceToken.findUnique({
+                    where: {
+                        userId: updatedIssue.customerId.toString()
                     }
-                );
+                })
+
+                if (fcmToken) {
+                    sendPushNotification(
+                        fcmToken.token,
+                        {
+                            title: "New Comment on Your Ticket",
+                            body: `A new comment was added to Ticket #${updatedIssue.ticketNo}:\n“${comment}”\n\nTap to view the full details.`,
+                        },
+                        {
+                            action: "OPEN_TICKET_DETAIL_PAGE",
+                            issueId: updatedIssue.id,
+                        }
+                    );
+                }
             }
 
 

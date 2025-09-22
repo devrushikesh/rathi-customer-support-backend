@@ -115,6 +115,8 @@ class ManagerServices {
                 }
             })
 
+            console.log(fcmToken);
+            
             if (fcmToken) {
                 sendPushNotification(
                     fcmToken.token,
