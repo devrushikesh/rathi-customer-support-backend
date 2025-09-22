@@ -103,7 +103,7 @@ class CustomerServices {
         // send notification to manager
         const fcmToken = await tx.deviceToken.findFirst({
           where: {
-            userId: issue.attachmentsRequestedByID
+            userId: issue.attachmentsRequestedByID!.toString()
           },
           select: {
             token: true
