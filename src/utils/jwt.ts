@@ -33,7 +33,7 @@ export function generate_jwt_token<T extends string | number = string>(payload: 
       return null;
     }
         // Set lifetime per mode
-    const lifetime = mode === "access" ? "1m" : "7d";
+    const lifetime = mode === "access" ? "1h" : "7d";
 
     // sign token (explicit algorithm)
     const token = jwt.sign(payload as object, TOKEN_SECRET_KEY, {
