@@ -46,7 +46,7 @@ class CustomerServices {
 
       // 2️⃣ Move files first (external S3 action – do outside transaction)
       const movedFiles = await moveFolder(
-        "rathi-engineering-issues",
+        "rathi-customer-support",
         `temp/${tempId}/`,
         `issues/${issue.ticketNo}/`
       );
@@ -273,7 +273,7 @@ class CustomerServices {
         }
 
         const movedFiles = await moveFolder(
-          "rathi-engineering-issues",
+          "rathi-customer-support",
           `temp/${data.tempId}/`,
           `issues/${ticketNo}/`
         );

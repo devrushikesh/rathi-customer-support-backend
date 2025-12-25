@@ -62,6 +62,7 @@ model Projects {
   location         String
   feedSize         String
   finalProductSize String
+  attachmentUrls   String[] @default([])
   customerId       Int
   customer         Customer @relation(fields: [customerId], references: [id])
 
@@ -155,6 +156,14 @@ model IssueAssignedDepartment {
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
 
   isStartedWork Boolean @default(false)
+
+  initialDeadline DateTime
+  requestedDeadline DateTime?
+  finalDeadline DateTime?
+
+  // Deadline approval
+  deadlineRequestReason String?
+  deadlineApprovedAt    DateTime?
 
   assignedAt DateTime @default(now())
   isActive   Boolean  @default(true) // Allow reassignment tracking
@@ -308,6 +317,11 @@ enum ActionType {
   SITE_VISIT_SCHEDULED
   SITE_VISIT_COMPLETED
   SITE_VISIT_CANCELLED
+
+  DEADLINE_ASSIGNED
+  DEADLINE_EXTENSION_REQUESTED
+  DEADLINE_APPROVED
+  DEADLINE_REJECTED
 }
 
 enum Priority {

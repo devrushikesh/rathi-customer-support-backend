@@ -1,6 +1,13 @@
 import type { InternalStatus } from "@prisma/client";
 import prisma from "../prisma/client.js";
 import { sendPushNotification } from "./firebase.service.js";
+import { generateMultiplePresignedPostUrls, moveFolder } from "./s3.service.js";
+import { randomUUID } from "crypto";
+
+interface FileItem {
+  fileName: string;
+  contentType: string;
+}
 
 class ManagerServices {
 
@@ -79,8 +86,59 @@ class ManagerServices {
         }
     }
 
+    static async getPresignedUrlsForProjectAttachments(files: Array<FileItem>) {
+        try {
+            if (files.length === 0) {
+                return {
+                    status: false,
+                    data: null,
+                    message: "No files provided"
+                };
+            }
 
-    static async createProject(projectName: string, customerId: number, machineType: string, capacity: string, location: string, application: string, feedSize: string, finalProductSize: string) {
+            if (files.length > 5) {
+                return {
+                    status: false,
+                    data: null,
+                    message: "Too many files provided. Maximum 5 files allowed."
+                };
+            }
+
+            const tempId = randomUUID();
+            const presignedUrls = await generateMultiplePresignedPostUrls(
+                files,
+                tempId
+            );
+
+            return {
+                status: true,
+                data: {
+                    presignedUrls,
+                    tempId
+                },
+                message: "Successfully created presigned urls"
+            };
+        } catch (error) {
+            return {
+                status: false,
+                data: null,
+                message: "Unable to create presigned urls"
+            };
+        }
+    }
+
+
+    static async createProject(
+        projectName: string, 
+        customerId: number, 
+        machineType: string, 
+        capacity: string, 
+        location: string, 
+        application: string, 
+        feedSize: string, 
+        finalProductSize: string,
+        tempId?: string
+    ) {
         try {
             const customer = await prisma.customer.findUnique({
                 where: {
@@ -96,6 +154,17 @@ class ManagerServices {
                 };
             }
 
+            let movedFiles: string[] = [];
+            
+            // If tempId is provided, move files from temp to project-attachments folder
+            if (tempId) {
+                movedFiles = await moveFolder(
+                    "rathi-customer-support",
+                    `temp/${tempId}/`,
+                    `project-attachments/${projectName.replace(/[^a-zA-Z0-9]/g, '-')}-${Date.now()}/`
+                );
+            }
+
             const newProject = await prisma.projects.create({
                 data: {
                     projectName,
@@ -105,7 +174,8 @@ class ManagerServices {
                     location,
                     application,
                     feedSize,
-                    finalProductSize
+                    finalProductSize,
+                    attachmentUrls: movedFiles
                 }
             });
 
@@ -140,6 +210,7 @@ class ManagerServices {
                 message: "Project created successfully"
             };
         } catch (error) {
+            console.error("Error creating project:", error);
             return {
                 status: false,
                 data: null,
@@ -289,6 +360,7 @@ class ManagerServices {
                     description: true,
                     updatedAt: true,
                     createdAt: true,
+                    dueDate: true,
                     isAttachmentsRequested: true,
                     isSiteVisitRequested: true,
                     latestStatus: {
@@ -333,6 +405,7 @@ class ManagerServices {
                     description: true,
                     updatedAt: true,
                     createdAt: true,
+                    dueDate: true,
                     isAttachmentsRequested: true,
                     isSiteVisitRequested: true,
                     latestStatus: {
@@ -386,7 +459,7 @@ class ManagerServices {
         }
     }
 
-    static async assignIssueToDepartment(issueId: string, headId: string, managerId: string) {
+    static async assignIssueToDepartment(issueId: string, headId: string, managerId: string, initialDeadline: string) {
         try {
             const result = await prisma.$transaction(async (tx) => {
                 const employee = await tx.employee.findUnique({
@@ -420,13 +493,19 @@ class ManagerServices {
                 if (isAssignmentExist) {
                     throw new Error(`This Issue Already assigned to the ${isAssignmentExist.employeeId} department`);
                 }
+                const deadlineDate = new Date(initialDeadline);
+                // normalize → keep only date
+                deadlineDate.setHours(0, 0, 0, 0);
 
                 const newAssignment = await tx.issueAssignedDepartment.create({
                     data: {
                         issueId: issueId,
-                        employeeId: headId
+                        employeeId: headId,
+                        initialDeadline: deadlineDate
                     }
                 })
+
+                const formattedDate = deadlineDate.toISOString().split("T")[0];
 
                 const newTimeLineEntry = await tx.issueTimeLine.create({
                     data: {
@@ -434,7 +513,7 @@ class ManagerServices {
                         fromInternalStatus: 'NEW',
                         toInternalStatus: 'OPEN',
                         action: 'ASSIGNED',
-                        comment: `Issue Assigned to ${employee.name} - ${employee.department} Head.`,
+                        comment: `Issue Assigned to ${employee.name} - ${employee.department} Head.\n Deadline: ${formattedDate}`,
                         performedBy: managerId
                     }
                 })
@@ -447,7 +526,8 @@ class ManagerServices {
                     data: {
                         internalStatus: 'OPEN',
                         customerStatus: 'OPEN',
-                        latestStatusId: newTimeLineEntry.id
+                        latestStatusId: newTimeLineEntry.id,
+                        dueDate: deadlineDate
                     }
                 })
 
@@ -529,6 +609,9 @@ class ManagerServices {
                     }
                 }
             });
+
+            console.log(issue);
+            
 
             if (!issue) {
                 return {

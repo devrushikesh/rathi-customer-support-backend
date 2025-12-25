@@ -37,6 +37,7 @@ class DepartmentService {
                     projectId: true,
                     ticketNo: true,
                     description: true,
+                    dueDate: true,
                     updatedAt: true,
                     createdAt: true,
                     isAttachmentsRequested: true,
@@ -91,6 +92,7 @@ class DepartmentService {
                     description: true,
                     updatedAt: true,
                     createdAt: true,
+                    dueDate: true,
                     isAttachmentsRequested: true,
                     isSiteVisitRequested: true,
                     latestStatus: {

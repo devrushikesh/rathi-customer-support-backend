@@ -7,7 +7,7 @@ import path from "node:path";
 const REGION = process.env.AWS_REGION || "ap-south-1";
 const ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID;
 const SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY;
-const DEFAULT_BUCKET = process.env.AWS_BUCKET_NAME || "rathi-engineering-issues";
+const DEFAULT_BUCKET = process.env.AWS_BUCKET_NAME || "rathi-customer-support";
 
 if (!ACCESS_KEY_ID || !SECRET_ACCESS_KEY) throw new Error("AWS credentials not set");
 

@@ -62,8 +62,8 @@ ManagerRoutes.get("/get-department-head-list", async (req: Request, res: Respons
 });
 
 ManagerRoutes.post("/assign-issue-to-department", async (req: Request, res: Response) => {
-    const { issueId, headId } = req.body;
-    if (!issueId || !headId) {
+    const { issueId, headId, initialDeadline } = req.body;
+    if (!issueId || !headId || !initialDeadline) {
         return res.status(400).json({
             status: false,
             data: null,
@@ -71,7 +71,7 @@ ManagerRoutes.post("/assign-issue-to-department", async (req: Request, res: Resp
         })
     }
     try {
-        const result = await ManagerServices.assignIssueToDepartment(issueId, headId, req.user.id);
+        const result = await ManagerServices.assignIssueToDepartment(issueId, headId, req.user.id, initialDeadline);
         if (result.status) {
             return res.json(result)
         }
@@ -86,9 +86,6 @@ ManagerRoutes.post("/assign-issue-to-department", async (req: Request, res: Resp
         });
     }
 })
-
-
-
 
 ManagerRoutes.get("/get-issue-detail-by-id/:issueId", async (req: Request, res: Response) => {
     const issueId = req.params.issueId;
@@ -145,7 +142,6 @@ ManagerRoutes.post("/mark-issue-invalid", async (req: Request, res: Response) =>
     }
 })
 
-
 ManagerRoutes.get("/get-customers-list", async (req: Request, res: Response) => {
     try {
         const result = await ManagerServices.getCustomerList();
@@ -158,7 +154,6 @@ ManagerRoutes.get("/get-customers-list", async (req: Request, res: Response) => 
         })
     }
 });
-
 
 ManagerRoutes.get("/get-all-projects-list", async (req: Request, res: Response) => {
     try {
@@ -173,7 +168,6 @@ ManagerRoutes.get("/get-all-projects-list", async (req: Request, res: Response) 
     }
 });
 
-
 ManagerRoutes.get("/get-manage-page-stats", async (req: Request, res: Response) => {
     try {
         const result = await ManagerServices.getManageStats();
@@ -186,7 +180,6 @@ ManagerRoutes.get("/get-manage-page-stats", async (req: Request, res: Response) 
         })
     }
 });
-
 
 ManagerRoutes.post("/create-customer", async (req: Request, res: Response) => {
     const { name, mobile_no, email } = req.body;
@@ -214,9 +207,35 @@ ManagerRoutes.post("/create-customer", async (req: Request, res: Response) => {
     }
 });
 
+ManagerRoutes.post("/get-presigned-urls-for-project-attachments", async (req: Request, res: Response) => {
+    const { files } = req.body;
+
+    if (!files || !Array.isArray(files)) {
+        return res.status(400).json({
+            status: false,
+            data: null,
+            message: "Invalid Request: files array is required"
+        });
+    }
+
+    try {
+        const result = await ManagerServices.getPresignedUrlsForProjectAttachments(files);
+        if (result.status) {
+            return res.json(result);
+        } else {
+            return res.status(400).json(result);
+        }
+    } catch (error) {
+        return res.status(500).json({
+            status: false,
+            data: null,
+            message: "Something went wrong"
+        });
+    }
+});
 
 ManagerRoutes.post("/create-project", async (req: Request, res: Response) => {
-    const { projectName, customerId, machineType, capacity, location, application, feedSize, finalProductSize } = req.body;
+    const { projectName, customerId, machineType, capacity, location, application, feedSize, finalProductSize, tempId } = req.body;
 
     if (!projectName || !customerId || !machineType || !capacity || !location || !application || !feedSize || !finalProductSize) {
         return res.status(400).json({
@@ -226,7 +245,17 @@ ManagerRoutes.post("/create-project", async (req: Request, res: Response) => {
         })
     }
     try {
-        const result = await ManagerServices.createProject(projectName, customerId, machineType, capacity, location, application, feedSize, finalProductSize);
+        const result = await ManagerServices.createProject(
+            projectName, 
+            customerId, 
+            machineType, 
+            capacity, 
+            location, 
+            application, 
+            feedSize, 
+            finalProductSize,
+            tempId
+        );
         if (result.status) {
             return res.json(result);
         } else {
@@ -240,7 +269,6 @@ ManagerRoutes.post("/create-project", async (req: Request, res: Response) => {
         })
     }
 });
-
 
 ManagerRoutes.get(
     "/get-customer-details-by-id/:customerId",
@@ -314,7 +342,6 @@ ManagerRoutes.get("/get-project-detail-by-id/:projectId", async (req: Request, r
         });
     }
 });
-
 
 ManagerRoutes.get("/get-home-page-stats", async (req: Request, res: Response) => {
     try {
