@@ -115,4 +115,101 @@ CommonRoutes.post("/update-fcm-token", async (req: Request, res: Response) => {
 });
 
 
+// Report Generation Endpoints
+
+// Department Head Report
+CommonRoutes.get("/report/department-head/:employeeId", async (req: Request, res: Response) => {
+    const { employeeId } = req.params;
+    const { startDate, endDate } = req.query;
+
+    // Validate role - only HEAD or ISSUE_MANAGER can access this report
+    if (req.user.role !== 'HEAD' && req.user.role !== 'ISSUE_MANAGER') {
+        return res.status(403).json({
+            status: false,
+            data: null,
+            message: "Access denied. Only department heads and managers can generate this report."
+        });
+    }
+
+    // If user is a HEAD, they can only view their own report
+    if (req.user.role === 'HEAD' && req.user.id !== employeeId) {
+        return res.status(403).json({
+            status: false,
+            data: null,
+            message: "Access denied. You can only view your own report."
+        });
+    }
+
+    if (!employeeId || !startDate || !endDate) {
+        return res.status(400).json({
+            status: false,
+            data: null,
+            message: "Employee ID, startDate, and endDate are required"
+        });
+    }
+
+    try {
+        const result = await CommonServices.generateDepartmentHeadReport(
+            employeeId,
+            startDate as string,
+            endDate as string
+        );
+        
+        if (result.status) {
+            return res.json(result);
+        } else {
+            return res.status(400).json(result);
+        }
+    } catch (error) {
+        return res.status(500).json({
+            status: false,
+            data: null,
+            message: "Failed to generate report"
+        });
+    }
+});
+
+// Manager Report
+CommonRoutes.get("/report/manager", async (req: Request, res: Response) => {
+    const { startDate, endDate, department } = req.query;
+
+    // Validate role - only ISSUE_MANAGER can access this report
+    if (req.user.role !== 'ISSUE_MANAGER') {
+        return res.status(403).json({
+            status: false,
+            data: null,
+            message: "Access denied. Only managers can generate this report."
+        });
+    }
+
+    if (!startDate || !endDate) {
+        return res.status(400).json({
+            status: false,
+            data: null,
+            message: "startDate and endDate are required"
+        });
+    }
+
+    try {
+        const result = await CommonServices.generateManagerReport(
+            startDate as string,
+            endDate as string,
+            department as string | undefined
+        );
+        
+        if (result.status) {
+            return res.json(result);
+        } else {
+            return res.status(400).json(result);
+        }
+    } catch (error) {
+        return res.status(500).json({
+            status: false,
+            data: null,
+            message: "Failed to generate report"
+        });
+    }
+});
+
+
 export default CommonRoutes;
